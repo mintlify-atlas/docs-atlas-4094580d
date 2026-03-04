@@ -84,7 +84,8 @@
               "api/modules/bcos-conv2d",
               "api/modules/bcos-linear",
               "api/modules/logit-layer",
-              "api/modules/norms"
+              "api/modules/norms",
+              "api/modules/common"
             ]
           },
           {

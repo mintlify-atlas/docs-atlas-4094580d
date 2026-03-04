@@ -1,0 +1,183 @@
+---
+title: Common Utilities
+description: Utility classes for building B-cos models
+---
+
+## Overview
+
+The `bcos.modules.common` module provides utility classes used internally by B-cos models and available for building custom architectures.
+
+## DetachableModule
+
+Base class for modules that can detach dynamic weights from the computation graph, which is necessary for generating explanations.
+
+### Signature
+
+```python
+class DetachableModule(nn.Module):
+    def __init__(self)
+    def set_explanation_mode(self, activate: bool = True) -> None
+    def is_in_explanation_mode(self) -> bool
+```
+
+### Attributes
+
+<ParamField path="detach" type="bool" default="False">
+  Whether the module is in explanation mode
+</ParamField>
+
+### Methods
+
+#### set_explanation_mode
+
+```python
+def set_explanation_mode(self, activate: bool = True) -> None
+```
+
+Turn explanation mode on or off. When activated, the module will detach weights from the computation graph during forward passes.
+
+<ParamField path="activate" type="bool" default="True">
+  Whether to activate explanation mode
+</ParamField>
+
+#### is_in_explanation_mode
+
+```python
+@property
+def is_in_explanation_mode(self) -> bool
+```
+
+Returns whether the module is currently in explanation mode.
+
+### Usage
+
+`DetachableModule` is typically used as a base class for custom B-cos layers:
+
+```python
+from torch import nn
+from bcos.modules.common import DetachableModule
+
+class CustomBcosLayer(DetachableModule):
+    def __init__(self, in_features, out_features):
+        super().__init__()
+        self.weight = nn.Parameter(torch.randn(out_features, in_features))
+    
+    def forward(self, x):
+        # Normalize weights
+        w = self.weight / self.weight.norm(dim=1, keepdim=True)
+        
+        # Detach if in explanation mode
+        if self.detach:
+            w = w.detach()
+        
+        return x @ w.t()
+```
+
+<Note>
+  Most B-cos layers (`BcosConv2d`, `BcosLinear`) and normalization layers already inherit from `DetachableModule`, so you typically don't need to use it directly unless building custom layers.
+</Note>
+
+## BcosSequential
+
+A wrapper for models built with `nn.Sequential` that adds B-cos utility methods from `BcosUtilMixin`.
+
+### Signature
+
+```python
+class BcosSequential(BcosUtilMixin, nn.Sequential):
+    def __init__(self, *args)
+```
+
+### Usage
+
+Use `BcosSequential` instead of `nn.Sequential` when building B-cos models to get built-in explanation methods:
+
+```python
+from bcos.modules import BcosConv2d, BcosSequential
+from bcos.modules.norms import DetachableGNLayerNorm2d
+
+model = BcosSequential(
+    BcosConv2d(3, 64, kernel_size=3, padding=1),
+    DetachableGNLayerNorm2d(64),
+    BcosConv2d(64, 128, kernel_size=3, padding=1),
+    DetachableGNLayerNorm2d(128),
+    nn.AdaptiveAvgPool2d(1),
+    nn.Flatten(),
+)
+
+# Now the model has .explain() and other utility methods
+model.eval()
+with model.explanation_mode():
+    explanation = model.explain(input_tensor)
+```
+
+### Inherited Methods
+
+`BcosSequential` inherits all methods from [`BcosUtilMixin`](/api/utilities/common#bcosutilmixin):
+
+- `.explain()` - Generate explanations for inputs
+- `.explanation_mode()` - Context manager for explanation mode
+- `.attribute()` - Captum-compatible attribution
+- `.gradient_to_image()` - Convert gradients to visualizations
+- `.plot_contribution_map()` - Plot contribution heatmaps
+
+### When to Use
+
+**Use `BcosSequential` when:**
+- Building simple feed-forward B-cos models
+- You want built-in explanation methods without manual mixin integration
+- The model can be expressed as a sequence of layers
+
+**Use `nn.Sequential` when:**
+- Building standard (non-B-cos) models
+- You don't need explanation functionality
+
+**Use custom `nn.Module` with `BcosUtilMixin` when:**
+- Building complex models with branches or skip connections
+- You need fine-grained control over the forward pass
+
+## Example: Complete Custom Model
+
+```python
+from torch import nn
+from bcos.modules import (
+    BcosConv2d, 
+    BcosLinear, 
+    BcosSequential, 
+    LogitLayer
+)
+from bcos.modules.norms import DetachableGNLayerNorm2d
+
+# Simple CNN classifier
+model = BcosSequential(
+    # Convolutional layers
+    BcosConv2d(3, 32, kernel_size=3, padding=1),
+    DetachableGNLayerNorm2d(32),
+    nn.MaxPool2d(2),
+    
+    BcosConv2d(32, 64, kernel_size=3, padding=1),
+    DetachableGNLayerNorm2d(64),
+    nn.MaxPool2d(2),
+    
+    BcosConv2d(64, 128, kernel_size=3, padding=1),
+    DetachableGNLayerNorm2d(128),
+    nn.AdaptiveAvgPool2d(1),
+    
+    # Classifier
+    nn.Flatten(),
+    BcosLinear(128, 10),
+    LogitLayer(),
+)
+
+# Model now has all B-cos utilities
+img = torch.randn(1, 3, 32, 32).requires_grad_()
+output = model.explain(img)
+print(output['prediction'])
+```
+
+## Related
+
+- [BcosUtilMixin](/api/utilities/common#bcosutilmixin) - Mixin providing explanation utilities
+- [BcosConv2d](/api/modules/bcos-conv2d) - Convolutional layer using DetachableModule
+- [BcosLinear](/api/modules/bcos-linear) - Linear layer using DetachableModule
+- [Normalization Layers](/api/modules/norms) - Most norm layers inherit from DetachableModule
