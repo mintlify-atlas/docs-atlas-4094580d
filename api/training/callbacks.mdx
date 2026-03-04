@@ -1,0 +1,342 @@
+---
+title: Training Callbacks
+description: PyTorch Lightning callbacks for metrics tracking and explanation logging
+---
+
+## MetricsTracker
+
+PyTorch Lightning callback that tracks and saves metrics during training.
+
+### Overview
+
+The `MetricsTracker` callback automatically:
+- Collects all `torchmetrics.Metric` instances from the Lightning module
+- Records their values at the end of each validation epoch
+- Saves metrics to compressed numpy files (`.gz`) in the checkpoint directory
+- Stores metrics in checkpoint state for resuming training
+
+### Constructor
+
+```python
+MetricsTracker()
+```
+
+No parameters required.
+
+### Behavior
+
+The callback monitors all metrics defined as module attributes (e.g., `self.train_acc1`, `self.eval_acc5`) and saves them to:
+
+```
+{trainer.default_root_dir}/metrics/{metric_name}.gz
+```
+
+Each file contains a 2-column array: `[epoch, value]`.
+
+### Methods
+
+#### setup
+
+```python
+setup(trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None
+```
+
+Discovering and initializes tracking for all `torchmetrics.Metric` instances in the Lightning module.
+
+#### on_validation_end
+
+```python
+on_validation_end(trainer: pl.Trainer, pl_module: pl.LightningModule) -> None
+```
+
+Records metric values at the end of each validation epoch (skips sanity checking).
+
+#### on_save_checkpoint
+
+```python
+on_save_checkpoint(
+    trainer: pl.Trainer,
+    pl_module: pl.LightningModule,
+    checkpoint: Dict[str, Any]
+) -> None
+```
+
+Saves all tracked metrics to compressed numpy files.
+
+#### state_dict / load_state_dict
+
+Implements checkpoint state saving/loading for seamless training resumption.
+
+### Example Usage
+
+```python
+import pytorch_lightning as pl
+from bcos.training.callbacks import MetricsTracker
+
+# Add to trainer callbacks
+trainer = pl.Trainer(
+    callbacks=[MetricsTracker()],
+    # ... other config
+)
+
+trainer.fit(model, datamodule)
+
+# Load saved metrics
+import numpy as np
+metrics = np.loadtxt('lightning_logs/version_0/metrics/val_acc1.gz')
+epochs = metrics[:, 0]
+accuracies = metrics[:, 1]
+```
+
+### Output Format
+
+Each metric file contains:
+```
+epoch_0  value_0
+epoch_1  value_1
+...
+```
+
+Example:
+```python
+# val_acc1.gz contents
+0.0  0.7234
+1.0  0.7891
+2.0  0.8123
+```
+
+---
+
+## ExplanationsLogger
+
+PyTorch Lightning callback that logs B-cos model explanations (dynamic linear explanations) during training.
+
+### Overview
+
+The `ExplanationsLogger` callback:
+- Works exclusively with B-cos models (models with `explanation_mode()` method)
+- Generates and logs visual explanations for a fixed set of validation images
+- Supports logging to Weights & Biases and TensorBoard
+- Creates side-by-side comparisons of input images and their explanations
+- Highlights correct (green) vs incorrect (orange) predictions
+
+### Constructor
+
+```python
+ExplanationsLogger(
+    log_every_n_epochs: int = 1,
+    idx: Optional[torch.Tensor] = None,
+    max_imgs: int = 32
+)
+```
+
+<ParamField path="log_every_n_epochs" type="int" default="1">
+  Frequency of explanation logging (e.g., 1 = every epoch, 10 = every 10 epochs)
+</ParamField>
+
+<ParamField path="idx" type="torch.Tensor">
+  Specific indices of validation images to use. If None, randomly samples `max_imgs` images with seed 42
+</ParamField>
+
+<ParamField path="max_imgs" type="int" default="32">
+  Maximum number of images to log explanations for
+</ParamField>
+
+### Attributes
+
+<ParamField path="has_bcos_model" type="bool">
+  Whether the Lightning module contains a B-cos model (automatically detected)
+</ParamField>
+
+<ParamField path="imgs" type="torch.Tensor">
+  Cached validation images for explanation generation
+</ParamField>
+
+<ParamField path="lbls" type="torch.Tensor">
+  Ground truth labels for cached images
+</ParamField>
+
+<ParamField path="model" type="ModelCopy">
+  CPU copy of the model for efficient explanation generation
+</ParamField>
+
+### Methods
+
+#### setup
+
+```python
+setup(trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None
+```
+
+Initializes the callback by:
+- Checking if the model is a B-cos model
+- Sampling validation images
+- Creating a CPU copy of the model
+
+<Warning>
+If `pl_module.is_bcos` is False or the model lacks `explanation_mode()`, a warning is logged and explanation logging is skipped.
+</Warning>
+
+#### on_validation_end
+
+```python
+on_validation_end(trainer: pl.Trainer, pl_module: pl.LightningModule) -> None
+```
+
+Generates and logs explanations at the specified frequency (every `log_every_n_epochs`).
+
+#### log_explanations
+
+```python
+log_explanations(
+    wandb_logger: Optional[pl_loggers.WandbLogger] = None,
+    tensorboard_logger: Optional[pl_loggers.TensorBoardLogger] = None,
+    postfix: str = ""
+)
+```
+
+Generates explanations and logs them to the specified logger(s).
+
+<ParamField path="wandb_logger" type="WandbLogger">
+  Weights & Biases logger instance
+</ParamField>
+
+<ParamField path="tensorboard_logger" type="TensorBoardLogger">
+  TensorBoard logger instance
+</ParamField>
+
+<ParamField path="postfix" type="str" default="">
+  Optional suffix for the log namespace
+</ParamField>
+
+#### get_results
+
+```python
+get_results()
+```
+
+Generates explanations for all cached images by:
+1. Running forward pass in `explanation_mode()`
+2. Computing gradients w.r.t. inputs for the predicted class
+3. Extracting dynamic weights (gradients)
+
+**Returns:** List of tuples `(image, label, prediction, weights)` for each test image.
+
+#### plot_explanations
+
+```python
+plot_explanations(results)
+```
+
+Creates a matplotlib figure with side-by-side visualizations of images and their explanations.
+
+<ParamField path="results" type="list" required>
+  List of result tuples from `get_results()`
+</ParamField>
+
+**Returns:** Matplotlib figure object.
+
+**Visualization Details:**
+- Images and explanations are arranged in a grid
+- Green borders indicate correct predictions
+- Orange borders indicate incorrect predictions
+- Different line styles for correct (solid-ish) vs incorrect (dashed) predictions
+
+### Example Usage
+
+```python
+import pytorch_lightning as pl
+from bcos.training.callbacks import ExplanationsLogger
+from pytorch_lightning.loggers import WandbLogger
+
+# Configure callback
+expl_logger = ExplanationsLogger(
+    log_every_n_epochs=5,  # Log every 5 epochs
+    max_imgs=16            # Log 16 images
+)
+
+# Setup trainer with logger
+wandb_logger = WandbLogger(project="bcos-training")
+
+trainer = pl.Trainer(
+    logger=wandb_logger,
+    callbacks=[expl_logger],
+    max_epochs=100
+)
+
+# Train (explanations will be logged automatically)
+trainer.fit(model, datamodule)
+```
+
+### Advanced Usage
+
+#### Custom Image Selection
+
+```python
+import torch
+
+# Use specific validation images
+specific_indices = torch.tensor([0, 10, 42, 100, 255])
+
+expl_logger = ExplanationsLogger(
+    idx=specific_indices,
+    log_every_n_epochs=1
+)
+```
+
+#### Manual Explanation Logging
+
+```python
+# Log explanations manually (e.g., for custom evaluation)
+from pytorch_lightning.loggers import TensorBoardLogger
+
+tb_logger = TensorBoardLogger("logs")
+expl_logger.log_explanations(
+    tensorboard_logger=tb_logger,
+    postfix="_custom"
+)
+```
+
+### ModelCopy Helper Class
+
+Internal helper class that creates a CPU copy of the model for efficient explanation generation.
+
+```python
+ModelCopy(model: torch.nn.Module, use_cpu: bool = True)
+```
+
+**Methods:**
+- `update()`: Syncs parameters from the original model
+- `freeze()`: Disables gradient computation for all parameters
+- `explanation_mode()`: Delegates to the underlying model's explanation mode
+
+### Requirements
+
+<Warning>
+This callback requires:
+- A B-cos model with `explanation_mode()` method
+- `pl_module.is_bcos = True` attribute
+- At least one logger (WandbLogger or TensorBoardLogger)
+- The `bcos.common.gradient_to_image` function for visualization
+</Warning>
+
+### Logged Data
+
+**Namespace:** `explanations/Explanations` (or `explanations{postfix}/Explanations`)
+
+**Format:**
+- Weights & Biases: Image array
+- TensorBoard: Figure or image tensor
+
+### Performance Considerations
+
+- Explanation generation runs on CPU to avoid GPU memory issues
+- Model copy is updated only when logging (not every step)
+- Gradients are computed only for the predicted class
+- Images are cached at setup to avoid repeated data loading
+
+### Related
+
+- [ClassificationLitModel](/api/training/trainer) - Sets up explanation logging via command-line args
+- [B-cos Models](/api/models/overview) - Models with `explanation_mode()` support
+- [gradient_to_image](/api/utilities/visualization) - Converts gradients to visual explanations

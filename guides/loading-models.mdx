@@ -1,0 +1,288 @@
+---
+title: Loading Models
+description: Learn how to load B-cos models using torch.hub, local checkpoints, and custom configurations
+---
+
+B-cos Networks provides multiple ways to load pretrained models for inference or fine-tuning. This guide covers all loading methods and best practices.
+
+## Quick Start with torch.hub
+
+The easiest way to load a pretrained B-cos model is through `torch.hub`:
+
+```python
+import torch
+
+# Load a pretrained ResNet-50 model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+model.eval()
+```
+
+<Note>
+All models loaded via `torch.hub` come with a built-in `transform` attribute for preprocessing images and an `explain()` method for generating explanations.
+</Note>
+
+## Available Models
+
+List all available pretrained models:
+
+```python
+import torch
+
+# Get list of all available models
+available_models = torch.hub.list('B-cos/B-cos-v2')
+print(available_models)
+```
+
+<Accordion title="Available Model Architectures">
+- **ResNets**: `resnet18`, `resnet34`, `resnet50`, `resnet101`, `resnet152`
+- **ResNeXt**: `resnext50_32x4d`
+- **DenseNets**: `densenet121`, `densenet161`, `densenet169`, `densenet201`
+- **ConvNeXt**: `convnext_tiny`, `convnext_base`, `convnext_tiny_bnu`, `convnext_base_bnu`
+- **VGG**: `vgg11_bnu`
+- **Vision Transformers**: `simple_vit_ti_patch16_224`, `simple_vit_s_patch16_224`, `simple_vit_b_patch16_224`, `simple_vit_l_patch16_224`
+- **ViT with Conv stem**: `vitc_ti_patch1_14`, `vitc_s_patch1_14`, `vitc_b_patch1_14`, `vitc_l_patch1_14`
+- **Standard (non-B-cos) ViTs**: Models prefixed with `standard_`
+
+See the [Model Zoo](/model-zoo/overview) for complete details.
+</Accordion>
+
+## Loading Options
+
+### Loading without Pretrained Weights
+
+Load a model architecture without pretrained weights:
+
+```python
+import torch
+
+# Load model architecture only (random initialization)
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=False)
+```
+
+### Disable Progress Bar
+
+Disable the download progress bar:
+
+```python
+model = torch.hub.load(
+    'B-cos/B-cos-v2', 
+    'resnet50', 
+    pretrained=True,
+    progress=False  # Disable progress bar
+)
+```
+
+## Using the Model Transform
+
+Every model loaded via `torch.hub` has an attached `transform` attribute for preprocessing:
+
+```python
+import torch
+from PIL import Image
+
+# Load model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+model.eval()
+
+# Load and preprocess image
+img = Image.open('image.jpg')
+img_tensor = model.transform(img)  # Applies the correct preprocessing
+
+# Add batch dimension and run inference
+img_tensor = img_tensor.unsqueeze(0)
+with torch.no_grad():
+    output = model(img_tensor)
+```
+
+<Note>
+The `model.transform` applies the exact same preprocessing used during training, including:
+- Resizing to the correct input size
+- Center cropping
+- Normalization with the right mean and std values
+- Conversion to the 6-channel B-cos input format (3 RGB + 3 complement channels)
+</Note>
+
+## Loading from Local Checkpoints
+
+### Loading Direct State Dictionaries
+
+Load a model from a local checkpoint file:
+
+```python
+import torch
+from bcos.models.pretrained import resnet50
+
+# Load model architecture
+model = resnet50(pretrained=False)
+
+# Load weights from local checkpoint
+state_dict = torch.load('path/to/checkpoint.pth', map_location='cpu')
+model.load_state_dict(state_dict)
+model.eval()
+```
+
+### Using the Experiment Class
+
+For models trained with the B-cos training framework, use the `Experiment` class:
+
+```python
+from bcos.experiments.utils import Experiment
+
+# Initialize experiment (loads config automatically)
+exp = Experiment(
+    dataset="ImageNet",
+    base_network="bcos_final",
+    experiment_name="resnet_50"
+)
+
+# Load model with trained weights
+model = exp.load_trained_model(reload="best")  # or reload="last"
+
+# Get the datamodule
+datamodule = exp.get_datamodule()
+
+# Access the config
+print(exp.config)
+```
+
+<CodeGroup>
+```python Training Checkpoint
+# Load the best checkpoint from training
+model = exp.load_trained_model(reload="best")
+```
+
+```python Last Checkpoint
+# Load the last saved checkpoint
+model = exp.load_trained_model(reload="last")
+```
+
+```python Specific Checkpoint
+# Load a specific checkpoint by path
+model = exp.load_trained_model(
+    reload="path/to/checkpoint.ckpt"
+)
+```
+</CodeGroup>
+
+## Loading with Custom Configurations
+
+Load a model with custom parameters:
+
+```python
+import torch
+from bcos.experiments.utils import Experiment
+
+# Initialize experiment
+exp = Experiment("ImageNet", "bcos_final", "resnet_50")
+
+# Get model with custom arguments
+model = exp.get_model(
+    args={"num_classes": 100},  # Custom number of classes
+    bcos_args={"b": 2}  # Custom B-cos parameters
+)
+```
+
+## Accessing Model Components
+
+All B-cos models provide methods to access their components:
+
+```python
+import torch
+
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+
+# Get the feature extractor (backbone without classifier)
+feature_extractor = model.get_feature_extractor()
+
+# Get the classifier head
+classifier = model.get_classifier()
+
+# Access the model config
+config = model.config
+
+# Access the transform
+transform = model.transform
+```
+
+<Note>
+The `get_feature_extractor()` and `get_classifier()` methods are useful for fine-tuning. See the [Fine-tuning Guide](/guides/fine-tuning) for more details.
+</Note>
+
+## Model Attributes
+
+Models loaded via `torch.hub` have these useful attributes:
+
+<CardGroup cols={2}>
+  <Card title="model.config" icon="gear">
+    Complete configuration dictionary used during training
+  </Card>
+  <Card title="model.transform" icon="image">
+    Preprocessing transform for input images
+  </Card>
+  <Card title="model.explain()" icon="lightbulb">
+    Method to generate explanations for predictions
+  </Card>
+  <Card title="model.get_classifier()" icon="brain">
+    Returns the classification head
+  </Card>
+  <Card title="model.get_feature_extractor()" icon="cube">
+    Returns the feature extraction backbone
+  </Card>
+  <Card title="model.to_probabilities" icon="chart-line">
+    Function to convert logits to probabilities (torch.sigmoid)
+  </Card>
+</CardGroup>
+
+## Complete Example
+
+Here's a complete example combining all loading concepts:
+
+```python
+import torch
+from PIL import Image
+import matplotlib.pyplot as plt
+
+# Load pretrained model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+model.eval()
+
+print(f"Model config: {model.config['model']}")
+print(f"Number of classes: {model.config['model']['num_classes']}")
+
+# Load and preprocess image
+img = Image.open('image.jpg')
+img_tensor = model.transform(img).unsqueeze(0).requires_grad_()
+
+# Run inference
+with torch.no_grad():
+    logits = model(img_tensor)
+    probs = torch.sigmoid(logits)  # Convert to probabilities
+    pred_class = logits.argmax(dim=1).item()
+
+print(f"Predicted class: {pred_class}")
+print(f"Confidence: {probs[0, pred_class].item():.4f}")
+
+# Generate explanation
+expl_out = model.explain(img_tensor)
+plt.imshow(expl_out["explanation"])
+plt.title(f"Prediction: {expl_out['prediction']}")
+plt.axis('off')
+plt.show()
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Generate Explanations" icon="eye" href="/guides/explanation-visualization">
+    Learn how to visualize model explanations
+  </Card>
+  <Card title="Fine-tune Models" icon="wrench" href="/guides/fine-tuning">
+    Adapt pretrained models to your tasks
+  </Card>
+  <Card title="Model Zoo" icon="grid" href="/model-zoo/overview">
+    Browse all available models
+  </Card>
+  <Card title="Train Custom Models" icon="code" href="/training/overview-custom-models">
+    Train your own B-cos models
+  </Card>
+</CardGroup>

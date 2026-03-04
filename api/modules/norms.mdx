@@ -1,0 +1,482 @@
+---
+title: Normalization Layers
+description: Centered and uncentered normalization layers for B-cos networks
+---
+
+## Overview
+
+B-cos networks use specialized normalization layers that come in two variants:
+
+1. **Centered normalization**: Subtracts the mean before dividing by standard deviation (traditional approach)
+2. **Uncentered normalization**: Only divides by standard deviation without centering (preserves alignment information)
+
+Both variants support detachable normalization, where the variance calculation can be detached from the computation graph. This is useful for explanation methods.
+
+## Centered Normalization Layers
+
+### DetachableGNLayerNorm2d
+
+A CNN-compatible layer normalization based on GroupNorm with `num_groups=1`.
+
+```python
+from bcos.modules.norms import DetachableGNLayerNorm2d
+```
+
+**Constructor Parameters:**
+
+<ParamField path="num_channels" type="int" required>
+  Number of channels in the input
+</ParamField>
+
+<ParamField path="eps" type="float" default="1e-5">
+  Value added to the denominator for numerical stability
+</ParamField>
+
+<ParamField path="affine" type="bool" default="True">
+  If True, this module has learnable affine parameters (weight and bias)
+</ParamField>
+
+**Usage:**
+```python
+import torch
+from bcos.modules.norms import DetachableGNLayerNorm2d
+
+norm = DetachableGNLayerNorm2d(64)
+x = torch.randn(8, 64, 32, 32)
+out = norm(x)  # Shape: (8, 64, 32, 32)
+
+# Enable detached mode for explanations
+norm.set_explanation_mode(True)
+```
+
+### DetachableGNInstanceNorm2d
+
+Instance normalization based on GroupNorm with `num_groups=num_channels`.
+
+```python
+from bcos.modules.norms import DetachableGNInstanceNorm2d
+```
+
+**Constructor Parameters:**
+
+<ParamField path="num_channels" type="int" required>
+  Number of channels in the input
+</ParamField>
+
+<ParamField path="eps" type="float" default="1e-5">
+  Value added to the denominator for numerical stability
+</ParamField>
+
+<ParamField path="affine" type="bool" default="True">
+  If True, this module has learnable affine parameters
+</ParamField>
+
+**Usage:**
+```python
+from bcos.modules.norms import DetachableGNInstanceNorm2d
+
+norm = DetachableGNInstanceNorm2d(64)
+x = torch.randn(8, 64, 32, 32)
+out = norm(x)
+```
+
+### DetachableGroupNorm2d
+
+Standard group normalization with detachable variance.
+
+```python
+from bcos.modules.norms import DetachableGroupNorm2d
+```
+
+**Constructor Parameters:**
+
+<ParamField path="num_groups" type="int" required>
+  Number of groups to separate the channels into
+</ParamField>
+
+<ParamField path="num_channels" type="int" required>
+  Number of channels in the input
+</ParamField>
+
+<ParamField path="eps" type="float" default="1e-5">
+  Value added to the denominator for numerical stability
+</ParamField>
+
+<ParamField path="affine" type="bool" default="True">
+  If True, this module has learnable affine parameters
+</ParamField>
+
+**Usage:**
+```python
+from bcos.modules.norms import DetachableGroupNorm2d
+
+# 8 groups for 64 channels
+norm = DetachableGroupNorm2d(num_groups=8, num_channels=64)
+x = torch.randn(8, 64, 32, 32)
+out = norm(x)
+```
+
+### DetachableLayerNorm
+
+Non-CNN layer normalization for transformers and fully connected networks.
+
+```python
+from bcos.modules.norms import DetachableLayerNorm
+```
+
+**Constructor Parameters:**
+
+<ParamField path="normalized_shape" type="int | List[int] | torch.Size" required>
+  Input shape from an expected input of size. If a single integer is used, it is treated as a singleton list.
+</ParamField>
+
+<ParamField path="eps" type="float" default="1e-5">
+  Value added to the denominator for numerical stability
+</ParamField>
+
+<ParamField path="elementwise_affine" type="bool" default="True">
+  If True, this module has learnable affine parameters
+</ParamField>
+
+**Usage:**
+```python
+from bcos.modules.norms import DetachableLayerNorm
+
+# For fully connected layers
+norm = DetachableLayerNorm(512)
+x = torch.randn(8, 512)
+out = norm(x)  # Shape: (8, 512)
+
+# For transformers (normalize over last dimension)
+norm = DetachableLayerNorm(768)
+x = torch.randn(8, 196, 768)  # (batch, seq_len, hidden_dim)
+out = norm(x)  # Shape: (8, 196, 768)
+```
+
+### DetachablePositionNorm2d
+
+Position normalization that normalizes across channels at each spatial location.
+
+```python
+from bcos.modules.norms import DetachablePositionNorm2d
+```
+
+**Constructor Parameters:**
+
+<ParamField path="features" type="int" required>
+  Number of features (channels)
+</ParamField>
+
+<ParamField path="eps" type="float" default="1e-5">
+  Value added to the denominator for numerical stability
+</ParamField>
+
+<ParamField path="affine" type="bool" default="True">
+  If True, this module has learnable affine parameters
+</ParamField>
+
+**Usage:**
+```python
+from bcos.modules.norms import DetachablePositionNorm2d
+
+norm = DetachablePositionNorm2d(features=64)
+x = torch.randn(8, 64, 32, 32)
+out = norm(x)
+```
+
+### BatchNorm2d
+
+Standard batch normalization with explanation mode support.
+
+```python
+from bcos.modules.norms import BatchNorm2d
+```
+
+<Warning>
+  Centered BatchNorm only supports explanation mode during `.eval()` mode.
+</Warning>
+
+**Usage:**
+```python
+from bcos.modules.norms import BatchNorm2d
+
+norm = BatchNorm2d(64)
+x = torch.randn(8, 64, 32, 32)
+out = norm(x)
+```
+
+### AllNorm2d
+
+Normalizes over all dimensions (batch, channels, height, width).
+
+```python
+from bcos.modules.norms import AllNorm2d
+```
+
+<Warning>
+  Centered AllNorm only supports explanation mode during `.eval()` mode.
+</Warning>
+
+**Usage:**
+```python
+from bcos.modules.norms import AllNorm2d
+
+norm = AllNorm2d(num_features=64)
+x = torch.randn(8, 64, 32, 32)
+out = norm(x)
+```
+
+## Uncentered Normalization Layers
+
+Uncentered normalization layers do not subtract the mean, which preserves alignment information important for B-cos networks.
+
+### GroupNormUncentered2d
+
+Uncentered group normalization.
+
+```python
+from bcos.modules.norms import GroupNormUncentered2d
+```
+
+**Constructor Parameters:**
+
+<ParamField path="num_groups" type="int" required>
+  Number of groups to separate the channels into
+</ParamField>
+
+<ParamField path="num_channels" type="int" required>
+  Number of channels in the input
+</ParamField>
+
+<ParamField path="eps" type="float" default="1e-5">
+  Value added to the denominator for numerical stability
+</ParamField>
+
+<ParamField path="affine" type="bool" default="True">
+  If True, this module has learnable affine parameters
+</ParamField>
+
+**Usage:**
+```python
+from bcos.modules.norms import GroupNormUncentered2d
+
+norm = GroupNormUncentered2d(num_groups=8, num_channels=64)
+x = torch.randn(8, 64, 32, 32)
+out = norm(x)
+```
+
+### GNLayerNormUncentered2d
+
+Uncentered layer normalization for CNNs (GroupNorm with `num_groups=1`).
+
+```python
+from bcos.modules.norms import GNLayerNormUncentered2d
+```
+
+**Constructor Parameters:**
+
+<ParamField path="num_channels" type="int" required>
+  Number of channels in the input
+</ParamField>
+
+<ParamField path="eps" type="float" default="1e-5">
+  Value added to the denominator for numerical stability
+</ParamField>
+
+<ParamField path="affine" type="bool" default="True">
+  If True, this module has learnable affine parameters
+</ParamField>
+
+**Usage:**
+```python
+from bcos.modules.norms import GNLayerNormUncentered2d
+
+norm = GNLayerNormUncentered2d(num_channels=64)
+x = torch.randn(8, 64, 32, 32)
+out = norm(x)
+```
+
+### GNInstanceNormUncentered2d
+
+Uncentered instance normalization (GroupNorm with `num_groups=num_channels`).
+
+```python
+from bcos.modules.norms import GNInstanceNormUncentered2d
+```
+
+**Constructor Parameters:**
+
+<ParamField path="num_channels" type="int" required>
+  Number of channels in the input
+</ParamField>
+
+<ParamField path="eps" type="float" default="1e-5">
+  Value added to the denominator for numerical stability
+</ParamField>
+
+<ParamField path="affine" type="bool" default="True">
+  If True, this module has learnable affine parameters
+</ParamField>
+
+**Usage:**
+```python
+from bcos.modules.norms import GNInstanceNormUncentered2d
+
+norm = GNInstanceNormUncentered2d(num_channels=64)
+x = torch.randn(8, 64, 32, 32)
+out = norm(x)
+```
+
+### BatchNormUncentered2d
+
+Uncentered batch normalization.
+
+```python
+from bcos.modules.norms import BatchNormUncentered2d
+```
+
+**Usage:**
+```python
+from bcos.modules.norms import BatchNormUncentered2d
+
+norm = BatchNormUncentered2d(64)
+x = torch.randn(8, 64, 32, 32)
+out = norm(x)
+```
+
+### AllNormUncentered2d
+
+Uncentered normalization over all dimensions.
+
+```python
+from bcos.modules.norms import AllNormUncentered2d
+```
+
+**Usage:**
+```python
+from bcos.modules.norms import AllNormUncentered2d
+
+norm = AllNormUncentered2d(num_features=64)
+x = torch.randn(8, 64, 32, 32)
+out = norm(x)
+```
+
+### PositionNormUncentered2d
+
+Uncentered position normalization.
+
+```python
+from bcos.modules.norms import PositionNormUncentered2d
+```
+
+**Constructor Parameters:**
+
+<ParamField path="features" type="int" required>
+  Number of features (channels)
+</ParamField>
+
+<ParamField path="eps" type="float" default="1e-5">
+  Value added to the denominator for numerical stability
+</ParamField>
+
+<ParamField path="affine" type="bool" default="True">
+  If True, this module has learnable affine parameters
+</ParamField>
+
+**Usage:**
+```python
+from bcos.modules.norms import PositionNormUncentered2d
+
+norm = PositionNormUncentered2d(features=64)
+x = torch.randn(8, 64, 32, 32)
+out = norm(x)
+```
+
+## Utility Functions
+
+### NoBias
+
+Wrapper that removes bias from normalization layers.
+
+```python
+from bcos.modules.norms import NoBias, DetachableGNLayerNorm2d
+
+# Create a layer norm without bias but with weight
+NormNoBias = NoBias(DetachableGNLayerNorm2d)
+norm = NormNoBias(64)
+```
+
+### Unaffine
+
+Wrapper that removes both weight and bias from normalization layers.
+
+```python
+from bcos.modules.norms import Unaffine, DetachableGNLayerNorm2d
+
+# Create a layer norm without any learnable parameters
+NormUnaffine = Unaffine(DetachableGNLayerNorm2d)
+norm = NormUnaffine(64)
+```
+
+## Building Custom Models
+
+Example using normalization layers in a B-cos model:
+
+```python
+import torch.nn as nn
+from bcos.modules import BcosConv2d, BcosLinear, BcosSequential, LogitLayer
+from bcos.modules.norms import DetachableGNLayerNorm2d, GNLayerNormUncentered2d
+
+class CustomBcosModel(nn.Module):
+    def __init__(self, num_classes=1000, use_uncentered=False):
+        super().__init__()
+        
+        # Choose normalization type
+        NormLayer = GNLayerNormUncentered2d if use_uncentered else DetachableGNLayerNorm2d
+        
+        self.features = BcosSequential(
+            BcosConv2d(3, 64, kernel_size=3, padding=1, b=2),
+            NormLayer(64),
+            BcosConv2d(64, 128, kernel_size=3, stride=2, padding=1, b=2),
+            NormLayer(128),
+            BcosConv2d(128, 256, kernel_size=3, stride=2, padding=1, b=2),
+            NormLayer(256),
+            nn.AdaptiveAvgPool2d(1),
+        )
+        
+        self.classifier = nn.Sequential(
+            nn.Flatten(1),
+            BcosLinear(256, num_classes, b=2),
+            LogitLayer()
+        )
+    
+    def forward(self, x):
+        x = self.features(x)
+        x = self.classifier(x)
+        return x
+
+# Create models with different normalization types
+model_centered = CustomBcosModel(use_uncentered=False)
+model_uncentered = CustomBcosModel(use_uncentered=True)
+```
+
+## Choosing the Right Normalization
+
+**For B-cos models:**
+- **Uncentered variants** (e.g., `GNLayerNormUncentered2d`) are recommended as they preserve alignment information
+- Use centered variants if you need compatibility with standard architectures
+
+**Detachable variants:**
+- Use `Detachable*` layers when you need explanation mode support
+- Call `.set_explanation_mode(True)` before generating explanations
+
+**Common choices:**
+- **CNNs**: `DetachableGNLayerNorm2d` or `GNLayerNormUncentered2d`
+- **Transformers**: `DetachableLayerNorm`
+- **Small batch sizes**: Avoid `BatchNorm*`, prefer `GroupNorm*` or `LayerNorm*`
+
+## Related
+
+- [BcosConv2d](/api/modules/bcos-conv2d) - Convolutional layer for B-cos networks
+- [BcosLinear](/api/modules/bcos-linear) - Linear layer for B-cos networks
+- [Building Custom Models](/guides/training-custom-models) - Guide on building models with B-cos layers

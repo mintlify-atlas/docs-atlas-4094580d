@@ -1,0 +1,483 @@
+---
+title: Fine-tuning
+description: Adapt pretrained B-cos models to your custom datasets and tasks
+---
+
+Fine-tuning pretrained B-cos models allows you to leverage their learned features and interpretability for your specific tasks. This guide covers different fine-tuning strategies and best practices.
+
+## Why Fine-tune B-cos Models?
+
+B-cos models offer several advantages for fine-tuning:
+
+- **Inherent interpretability**: Explanations remain meaningful after fine-tuning
+- **Strong pretrained features**: Trained on ImageNet with high accuracy
+- **Flexible architectures**: Multiple model sizes and architectures available
+- **Easy component access**: Built-in methods to access feature extractors and classifiers
+
+## Quick Start: Replace Classifier
+
+The simplest fine-tuning approach is to replace the classifier head:
+
+```python
+import torch
+import torch.nn as nn
+
+# Load pretrained model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+
+# Replace classifier for 10 classes
+num_classes = 10
+classifier = model.get_classifier()
+
+# Get the input dimension
+if hasattr(classifier, 'in_features'):
+    in_features = classifier.in_features
+elif hasattr(classifier, 'linear'):
+    in_features = classifier.linear.in_features
+
+# Replace with new classifier
+from bcos.modules import BcosLinear
+model.fc = BcosLinear(in_features, num_classes)
+
+print(f"Model adapted for {num_classes} classes")
+```
+
+<Note>
+B-cos models use `BcosLinear` layers instead of standard `nn.Linear`. This preserves the B-cos properties and interpretability.
+</Note>
+
+## Accessing Model Components
+
+All B-cos models provide methods to access their components:
+
+```python
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+
+# Get feature extractor (backbone without classifier)
+feature_extractor = model.get_feature_extractor()
+
+# Get classifier head
+classifier = model.get_classifier()
+
+print(f"Feature extractor: {type(feature_extractor)}")
+print(f"Classifier: {type(classifier)}")
+```
+
+<Accordion title="What do these methods return?">
+- **`get_feature_extractor()`**: Returns the backbone network (e.g., conv layers, residual blocks) without the final classification layer or global pooling
+- **`get_classifier()`**: Returns the final classification layer (usually a `BcosLinear` or `BcosConv2d` layer)
+
+Note: Global pooling is typically part of the forward method, not included in either component.
+</Accordion>
+
+## Fine-tuning Strategies
+
+### Strategy 1: Freeze Feature Extractor
+
+Freeze the backbone and only train the new classifier:
+
+```python
+import torch
+import torch.nn as nn
+from bcos.modules import BcosLinear
+
+# Load model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+
+# Freeze feature extractor
+feature_extractor = model.get_feature_extractor()
+for param in feature_extractor.parameters():
+    param.requires_grad = False
+
+# Replace classifier
+num_classes = 100
+in_features = model.get_classifier().in_features
+model.fc = BcosLinear(in_features, num_classes)
+
+# Only classifier parameters require gradients
+trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+print(f"Trainable parameters: {trainable_params:,}")
+```
+
+<Card title="When to use" icon="lightbulb">
+Best for:
+- Small datasets (< 10k images)
+- Limited computational resources
+- Tasks similar to ImageNet
+- Quick experimentation
+</Card>
+
+### Strategy 2: Full Fine-tuning
+
+Train all parameters with a lower learning rate:
+
+```python
+import torch
+import torch.optim as optim
+from bcos.modules import BcosLinear
+
+# Load model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+
+# Replace classifier
+num_classes = 100
+in_features = model.get_classifier().in_features
+model.fc = BcosLinear(in_features, num_classes)
+
+# Set up optimizer with different learning rates
+optimizer = optim.Adam([
+    {'params': model.get_feature_extractor().parameters(), 'lr': 1e-5},
+    {'params': model.get_classifier().parameters(), 'lr': 1e-3}
+])
+
+print("All parameters trainable with differential learning rates")
+```
+
+<Card title="When to use" icon="lightbulb">
+Best for:
+- Large datasets (> 50k images)
+- Tasks different from ImageNet
+- Maximum performance needed
+- Sufficient computational resources
+</Card>
+
+### Strategy 3: Gradual Unfreezing
+
+Progressively unfreeze layers during training:
+
+```python
+import torch
+from bcos.modules import BcosLinear
+
+# Load model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+
+# Replace classifier
+num_classes = 100
+in_features = model.get_classifier().in_features
+model.fc = BcosLinear(in_features, num_classes)
+
+# Initially freeze all
+for param in model.parameters():
+    param.requires_grad = False
+
+# Unfreeze classifier
+for param in model.get_classifier().parameters():
+    param.requires_grad = True
+
+def unfreeze_layer(model, layer_name):
+    """Gradually unfreeze layers."""
+    for name, param in model.named_parameters():
+        if layer_name in name:
+            param.requires_grad = True
+
+# Training loop:
+# Epoch 0-5: Train only classifier
+# Epoch 5-10: Unfreeze layer4
+# Epoch 10-15: Unfreeze layer3
+# etc.
+```
+
+<Card title="When to use" icon="lightbulb">
+Best for:
+- Medium datasets (10k-50k images)
+- Avoiding catastrophic forgetting
+- Progressive adaptation
+- Balance between strategies 1 and 2
+</Card>
+
+## Complete Fine-tuning Example
+
+Here's a complete example for fine-tuning on a custom dataset:
+
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+from bcos.modules import BcosLinear
+
+# 1. Load pretrained model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = model.to(device)
+
+# 2. Replace classifier
+num_classes = 10
+in_features = model.get_classifier().in_features
+model.fc = BcosLinear(in_features, num_classes).to(device)
+
+# 3. Freeze feature extractor (optional)
+for param in model.get_feature_extractor().parameters():
+    param.requires_grad = False
+
+# 4. Prepare data
+train_dataset = datasets.ImageFolder(
+    'data/train',
+    transform=model.transform
+)
+train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+
+# 5. Set up training
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.get_classifier().parameters(), lr=1e-3)
+
+# 6. Training loop
+model.train()
+for epoch in range(10):
+    running_loss = 0.0
+    for inputs, labels in train_loader:
+        inputs, labels = inputs.to(device), labels.to(device)
+        
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        
+        running_loss += loss.item()
+    
+    print(f"Epoch {epoch+1}, Loss: {running_loss/len(train_loader):.4f}")
+
+# 7. Save fine-tuned model
+torch.save(model.state_dict(), 'finetuned_model.pth')
+```
+
+## Using Custom Data Augmentation
+
+While you can use `model.transform`, custom augmentation often helps:
+
+```python
+from torchvision import transforms
+from bcos.data.presets import PresetTransform, TransformMode
+
+# Get the base B-cos transform
+base_transform = model.transform
+
+# Create training augmentation
+train_transform = transforms.Compose([
+    transforms.Resize(256),
+    transforms.RandomCrop(224),
+    transforms.RandomHorizontalFlip(),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2),
+    # Convert to B-cos format (6 channels)
+    base_transform.encode,  # This creates the complement channels
+])
+
+# For validation, use the original transform
+val_transform = model.transform
+```
+
+<Note>
+B-cos models use 6-channel inputs (RGB + complement channels). Make sure your final transform includes the encoding step from `model.transform`.
+</Note>
+
+## Fine-tuning for Different Tasks
+
+### Feature Extraction
+
+Use B-cos models as feature extractors:
+
+```python
+import torch
+import torch.nn as nn
+
+# Load model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+model.eval()
+
+# Get feature extractor
+feature_extractor = model.get_feature_extractor()
+
+# Extract features
+with torch.no_grad():
+    features = feature_extractor(img_tensor)
+    # Apply global pooling if needed
+    features = features.mean(dim=[2, 3])  # Global average pooling
+
+print(f"Feature shape: {features.shape}")
+# Use features for downstream tasks (clustering, retrieval, etc.)
+```
+
+### Multi-task Learning
+
+Share features across multiple tasks:
+
+```python
+import torch.nn as nn
+from bcos.modules import BcosLinear
+
+class MultiTaskBcosModel(nn.Module):
+    def __init__(self, base_model, num_classes_task1, num_classes_task2):
+        super().__init__()
+        self.features = base_model.get_feature_extractor()
+        in_features = base_model.get_classifier().in_features
+        
+        # Task-specific heads
+        self.classifier_task1 = BcosLinear(in_features, num_classes_task1)
+        self.classifier_task2 = BcosLinear(in_features, num_classes_task2)
+        
+        # Copy over necessary attributes
+        self.logit_layer = base_model.logit_layer
+    
+    def forward(self, x):
+        # Shared features
+        x = self.features(x)
+        x = x.mean(dim=[2, 3])  # Global pooling
+        
+        # Task-specific outputs
+        out1 = self.classifier_task1(x)
+        out2 = self.classifier_task2(x)
+        
+        return out1, out2
+
+# Usage
+base_model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+model = MultiTaskBcosModel(base_model, num_classes_task1=10, num_classes_task2=5)
+```
+
+## Learning Rate Scheduling
+
+Use learning rate schedules for better convergence:
+
+```python
+import torch.optim as optim
+from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
+
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+
+# Set up optimizer
+optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+# Cosine annealing
+scheduler = CosineAnnealingLR(optimizer, T_max=100, eta_min=1e-6)
+
+# Or step decay
+# scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
+
+# Training loop
+for epoch in range(100):
+    train_one_epoch(model, optimizer, train_loader)
+    scheduler.step()
+    print(f"Epoch {epoch}, LR: {scheduler.get_last_lr()[0]:.6f}")
+```
+
+## Preserving Interpretability
+
+When fine-tuning, ensure explanations remain meaningful:
+
+```python
+import torch
+import matplotlib.pyplot as plt
+
+# After fine-tuning
+model.eval()
+img = model.transform(Image.open('test.jpg')).unsqueeze(0).requires_grad_()
+
+# Generate explanation
+expl_out = model.explain(img)
+
+# Verify explanation quality
+plt.figure(figsize=(12, 4))
+plt.subplot(1, 3, 1)
+plt.imshow(Image.open('test.jpg'))
+plt.title('Original')
+plt.axis('off')
+
+plt.subplot(1, 3, 2)
+plt.imshow(expl_out["explanation"])
+plt.title(f'Explanation (Class {expl_out["prediction"]})')
+plt.axis('off')
+
+plt.subplot(1, 3, 3)
+model.plot_contribution_map(expl_out["contribution_map"][0])
+plt.title('Contribution Map')
+
+plt.tight_layout()
+plt.show()
+```
+
+<Warning>
+Always verify that explanations remain sensible after fine-tuning. If explanations become noisy or uninformative, consider:
+- Using a lower learning rate
+- Freezing more layers
+- Adding regularization
+- Training for fewer epochs
+</Warning>
+
+## Best Practices
+
+<Steps>
+  <Step title="Start with frozen features">
+    Begin with frozen feature extractor, then gradually unfreeze if needed
+  </Step>
+  <Step title="Use differential learning rates">
+    Apply lower learning rates to pretrained layers (10-100x smaller)
+  </Step>
+  <Step title="Use BcosLinear for new layers">
+    Replace classifiers with `BcosLinear` to maintain interpretability
+  </Step>
+  <Step title="Validate explanations">
+    Regularly check that explanations remain meaningful
+  </Step>
+  <Step title="Use appropriate batch sizes">
+    Smaller batch sizes often work better for fine-tuning (16-32)
+  </Step>
+  <Step title="Monitor overfitting">
+    Use validation sets and early stopping
+  </Step>
+</Steps>
+
+## Common Issues and Solutions
+
+<AccordionGroup>
+  <Accordion title="RuntimeError: CUDA out of memory">
+    Solutions:
+    - Reduce batch size
+    - Use gradient accumulation
+    - Freeze more layers
+    - Use a smaller model (e.g., `resnet18` instead of `resnet50`)
+  </Accordion>
+  
+  <Accordion title="Poor explanation quality after fine-tuning">
+    Solutions:
+    - Lower learning rate
+    - Add weight decay (L2 regularization)
+    - Train for fewer epochs
+    - Freeze feature extractor
+    - Use B-cos-specific loss if needed
+  </Accordion>
+  
+  <Accordion title="Model not learning / loss not decreasing">
+    Solutions:
+    - Verify data preprocessing matches `model.transform`
+    - Check learning rate (try 1e-4 to 1e-3)
+    - Ensure classifier parameters are unfrozen
+    - Verify labels are correct
+  </Accordion>
+  
+  <Accordion title="Input shape mismatch errors">
+    Solutions:
+    - Ensure images are preprocessed with `model.transform`
+    - Check that input has 6 channels (RGB + complement)
+    - Verify batch dimension is present
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Training from Scratch" icon="rocket" href="/training/overview-custom-models">
+    Learn to train custom B-cos models
+  </Card>
+  <Card title="Explanation Visualization" icon="eye" href="/guides/explanation-visualization">
+    Master explanation generation and visualization
+  </Card>
+  <Card title="Model Zoo" icon="grid" href="/model-zoo/overview">
+    Explore all available base models
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference/bcos-modules">
+    Detailed module documentation
+  </Card>
+</CardGroup>

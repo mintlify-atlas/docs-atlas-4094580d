@@ -1,0 +1,255 @@
+---
+title: CNN Models
+description: Complete reference for B-cos convolutional neural network models including ResNet, DenseNet, ConvNeXt, and VGG architectures.
+---
+
+# Convolutional Neural Network Models
+
+This page documents all CNN-based models in the B-cos Model Zoo. All models are trained on ImageNet and provide inherent interpretability through B-cos alignment.
+
+## ResNet Family
+
+Residual Networks (ResNets) use skip connections to enable training of very deep networks. B-cos ResNets maintain this architecture while providing interpretability.
+
+### Standard ResNets
+
+| Model | Entrypoint | Top-1 Acc | Top-5 Acc | Parameters | Download |
+|-------|-----------|-----------|-----------|------------|---------|
+| ResNet-18 | `resnet18` | 68.736% | 87.430% | 11.69M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/resnet_18-68b4160fff.pth) |
+| ResNet-34 | `resnet34` | 72.284% | 90.052% | 21.80M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/resnet_34-a63425a03e.pth) |
+| ResNet-50 | `resnet50` | 75.882% | 92.528% | 25.52M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/resnet_50-ead259efe4.pth) |
+| ResNet-101 | `resnet101` | 76.532% | 92.538% | 44.50M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/resnet_101-84c3658278.pth) |
+| ResNet-152 | `resnet152` | 76.484% | 92.398% | 60.13M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/resnet_152-42051a77c1.pth) |
+| ResNeXt-50 32x4d | `resnext50_32x4d` | 75.820% | 91.810% | 25.00M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/resnext_50_32x4d-57af241ab9.pth) |
+
+### Extended Training ResNets
+
+These models are trained for 600 epochs with EMA and AMP for superior accuracy:
+
+| Model | Entrypoint | Top-1 Acc | Top-5 Acc | Parameters | Download |
+|-------|-----------|-----------|-----------|------------|---------|
+| ResNet-50 Long | `resnet50_long` | 79.468% | 94.452% | 25.52M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/resnet_50_long-ef38a88533.pth) |
+| ResNet-152 Long | `resnet152_long` | 80.144% | 94.116% | 60.13M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/resnet_152_long-0b4b434939.pth) |
+
+### Usage Example
+
+```python
+import torch
+
+# Load ResNet-50
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+
+# For extended training variant
+model_long = torch.hub.load('B-cos/B-cos-v2', 'resnet50_long', pretrained=True)
+```
+
+### Key Features
+
+- **Residual connections**: Enable training of very deep networks
+- **Efficient**: Good accuracy-to-parameter ratio
+- **Well-studied**: Extensive literature and transfer learning results
+- **Flexible**: Easy to fine-tune for downstream tasks
+
+### References
+
+- [Deep Residual Learning for Image Recognition](https://arxiv.org/pdf/1512.03385.pdf)
+- [Aggregated Residual Transformations for Deep Neural Networks](https://arxiv.org/pdf/1611.05431.pdf) (ResNeXt)
+
+---
+
+## DenseNet Family
+
+DenseNets connect each layer to every other layer in a feed-forward fashion, promoting feature reuse and reducing parameters.
+
+### Standard DenseNets
+
+| Model | Entrypoint | Top-1 Acc | Top-5 Acc | Parameters | Download |
+|-------|-----------|-----------|-----------|------------|---------|
+| DenseNet-121 | `densenet121` | 73.612% | 91.106% | 7.95M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/densenet_121-b8daf96afb.pth) |
+| DenseNet-169 | `densenet169` | 75.186% | 91.786% | 14.08M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/densenet_169-7037ee0604.pth) |
+| DenseNet-201 | `densenet201` | 75.480% | 91.992% | 19.91M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/densenet_201-00ac87066f.pth) |
+| DenseNet-161 | `densenet161` | 76.622% | 92.554% | 28.58M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/densenet_161-9e9ea51353.pth) |
+
+### Extended Training DenseNets
+
+| Model | Entrypoint | Top-1 Acc | Top-5 Acc | Parameters | Download |
+|-------|-----------|-----------|-----------|------------|---------|
+| DenseNet-121 Long | `densenet121_long` | 77.302% | 93.234% | 7.95M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/densenet_121_long-5175461597.pth) |
+
+### Usage Example
+
+```python
+import torch
+
+# Load DenseNet-121
+model = torch.hub.load('B-cos/B-cos-v2', 'densenet121', pretrained=True)
+
+# For extended training variant
+model_long = torch.hub.load('B-cos/B-cos-v2', 'densenet121_long', pretrained=True)
+```
+
+### Key Features
+
+- **Parameter efficient**: Excellent accuracy with fewer parameters
+- **Dense connectivity**: Each layer receives gradients directly from the loss
+- **Feature reuse**: Promotes feature propagation throughout the network
+- **Compact**: DenseNet-121 achieves 73.6% with only 7.95M parameters
+
+### References
+
+- [Densely Connected Convolutional Networks](https://arxiv.org/pdf/1608.06993.pdf)
+
+---
+
+## ConvNeXt Family
+
+ConvNeXt modernizes standard ConvNets with design principles learned from Vision Transformers, achieving competitive performance with pure convolutional architectures.
+
+### ConvNeXt with Height-Width Normalization
+
+| Model | Entrypoint | Top-1 Acc | Top-5 Acc | Parameters | Download |
+|-------|-----------|-----------|-----------|------------|---------|
+| ConvNeXt-Tiny | `convnext_tiny` | 77.488% | 93.192% | 28.54M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/convnext_tiny_pn-539b1bfb37.pth) |
+| ConvNeXt-Base | `convnext_base` | 79.650% | 94.614% | 88.47M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/convnext_base_pn-b0495852c6.pth) |
+
+### ConvNeXt with Batch Normalization (BNU)
+
+| Model | Entrypoint | Top-1 Acc | Top-5 Acc | Parameters | Download |
+|-------|-----------|-----------|-----------|------------|---------|
+| ConvNeXt-Tiny BNU | `convnext_tiny_bnu` | 76.826% | 93.090% | 28.54M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/convnext_tiny_bnu-dbd7f5ef9d.pth) |
+| ConvNeXt-Base BNU | `convnext_base_bnu` | 80.142% | 94.834% | 88.47M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/convnext_base_bnu-7c32a704b3.pth) |
+
+### Training Details
+
+All ConvNeXt models are trained with:
+- **Extended training**: 600 epochs
+- **AMP**: Automatic Mixed Precision for efficiency
+- **EMA or non-EMA checkpoints**: Selected for best performance
+- **Modern training recipes**: Following TorchVision's latest best practices
+
+### Usage Example
+
+```python
+import torch
+
+# Load ConvNeXt-Tiny with HW normalization
+model = torch.hub.load('B-cos/B-cos-v2', 'convnext_tiny', pretrained=True)
+
+# Load ConvNeXt-Base with BNU
+model_bnu = torch.hub.load('B-cos/B-cos-v2', 'convnext_base_bnu', pretrained=True)
+```
+
+### Key Features
+
+- **State-of-the-art CNN**: Competitive with Vision Transformers
+- **Modern design**: Incorporates ViT design principles
+- **Scalable**: Multiple sizes from Tiny to Base
+- **High accuracy**: Best-performing CNN models in the zoo
+
+### Normalization Variants
+
+- **HW Normalization (default)**: Height-Width spatial normalization
+- **BNU**: Batch Normalization without centering, optimized for B-cos networks
+
+### References
+
+- [A ConvNet for the 2020s](https://arxiv.org/abs/2201.03545)
+- [TorchVision's Training Recipe](https://pytorch.org/blog/how-to-train-state-of-the-art-models-using-torchvision-latest-primitives)
+
+---
+
+## VGG Models
+
+VGG networks use simple, deep architectures with small 3×3 filters. Our implementation uses batch normalization without centering.
+
+| Model | Entrypoint | Top-1 Acc | Top-5 Acc | Parameters | Download |
+|-------|-----------|-----------|-----------|------------|---------|
+| VGG-11 BNU | `vgg11_bnu` | 69.310% | 88.388% | 132.86M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/vgg_11_bnu-34036029f0.pth) |
+
+### Usage Example
+
+```python
+import torch
+
+model = torch.hub.load('B-cos/B-cos-v2', 'vgg11_bnu', pretrained=True)
+```
+
+### Key Features
+
+- **Simple architecture**: Easy to understand and modify
+- **Deep network**: 11 weight layers
+- **BNU**: Batch Normalization without centering for B-cos compatibility
+- **Large parameter count**: 132.86M parameters
+
+### References
+
+- [Very Deep Convolutional Networks for Large-Scale Image Recognition](https://arxiv.org/pdf/1409.1556.pdf)
+
+---
+
+## Model Selection Guide
+
+### Best Overall Accuracy
+
+1. **convnext_base_bnu**: 80.142% (88.47M params)
+2. **resnet152_long**: 80.144% (60.13M params)
+3. **convnext_base**: 79.650% (88.47M params)
+
+### Best Parameter Efficiency
+
+1. **densenet121_long**: 77.302% with only 7.95M params
+2. **densenet121**: 73.612% with only 7.95M params
+3. **resnet18**: 68.736% with only 11.69M params
+
+### Best for Edge Deployment
+
+- **densenet121**: 7.95M params, 73.6% accuracy
+- **resnet18**: 11.69M params, 68.7% accuracy
+- **resnet34**: 21.80M params, 72.3% accuracy
+
+### Best for Research/Benchmarking
+
+- **resnet50**: Standard baseline, widely used
+- **resnet50_long**: High-accuracy version for comparison
+- **convnext_base_bnu**: State-of-the-art CNN performance
+
+## Common Usage Patterns
+
+### Fine-tuning
+
+```python
+import torch
+
+# Load pretrained model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+
+# Get feature extractor and classifier
+feature_extractor = model.get_feature_extractor()
+classifier = model.get_classifier()
+
+# Freeze feature extractor
+for param in feature_extractor.parameters():
+    param.requires_grad = False
+
+# Fine-tune only the classifier
+for param in classifier.parameters():
+    param.requires_grad = True
+```
+
+### Generating Explanations
+
+```python
+import torch
+from PIL import Image
+
+model = torch.hub.load('B-cos/B-cos-v2', 'densenet121', pretrained=True)
+model.eval()
+
+img = model.transform(Image.open('image.jpg'))
+img = img[None].requires_grad_()
+
+# Get explanation
+expl_out = model.explain(img)
+print(f"Prediction: {expl_out['prediction']}")
+print(f"Explanation shape: {expl_out['explanation'].shape}")
+```

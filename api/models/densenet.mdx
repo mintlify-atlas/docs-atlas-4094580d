@@ -1,0 +1,207 @@
+---
+title: DenseNet Models
+description: B-cos DenseNet pretrained models with various depths and training configurations
+---
+
+# DenseNet Models
+
+B-cos DenseNet models are densely connected convolutional networks adapted for inherently interpretable predictions. These models are parameter-efficient while maintaining competitive accuracy.
+
+## Available Models
+
+| Model | Acc@1 | Acc@5 | Params | Entrypoint |
+|-------|-------|-------|--------|------------|
+| DenseNet-121 | 73.612% | 91.106% | 7.95M | `densenet121` |
+| DenseNet-161 | 76.622% | 92.554% | 28.58M | `densenet161` |
+| DenseNet-169 | 75.186% | 91.786% | 14.08M | `densenet169` |
+| DenseNet-201 | 75.480% | 91.992% | 19.91M | `densenet201` |
+| DenseNet-121 (long) | 77.302% | 93.234% | 7.95M | `densenet121_long` |
+
+## Usage
+
+### Basic Usage
+
+```python
+import torch
+
+# Load pretrained DenseNet-121
+model = torch.hub.load('B-cos/B-cos-v2', 'densenet121', pretrained=True)
+
+# Load without pretrained weights
+model = torch.hub.load('B-cos/B-cos-v2', 'densenet121', pretrained=False)
+```
+
+### Inference Example
+
+```python
+from PIL import Image
+
+# Load and preprocess image
+img = Image.open('image.jpg')
+img_tensor = model.transform(img).unsqueeze(0)
+
+# Get prediction with explanation
+model.eval()
+img_tensor.requires_grad_()
+expl_out = model.explain(img_tensor)
+print(f"Predicted class: {expl_out['prediction']}")
+```
+
+## API Reference
+
+### densenet121
+
+```python
+densenet121(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos DenseNet-121 model.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos DenseNet-121 model
+
+**Metrics:**
+- Acc@1: 73.612%
+- Acc@5: 91.106%
+- Parameters: 7.95M
+
+---
+
+### densenet161
+
+```python
+densenet161(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos DenseNet-161 model.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos DenseNet-161 model
+
+**Metrics:**
+- Acc@1: 76.622%
+- Acc@5: 92.554%
+- Parameters: 28.58M
+
+---
+
+### densenet169
+
+```python
+densenet169(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos DenseNet-169 model.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos DenseNet-169 model
+
+**Metrics:**
+- Acc@1: 75.186%
+- Acc@5: 91.786%
+- Parameters: 14.08M
+
+---
+
+### densenet201
+
+```python
+densenet201(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos DenseNet-201 model.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos DenseNet-201 model
+
+**Metrics:**
+- Acc@1: 75.480%
+- Acc@5: 91.992%
+- Parameters: 19.91M
+
+---
+
+### densenet121_long
+
+```python
+densenet121_long(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos DenseNet-121 trained for 600 epochs with improved training recipe.
+
+The model architecture is the same as `densenet121`. The weights are from epoch 596's non-EMA checkpoint. The model was trained with AMP.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos DenseNet-121 (long training) model
+
+**Metrics:**
+- Acc@1: 77.302%
+- Acc@5: 93.234%
+- Parameters: 7.95M
+
+## Notes
+
+DenseNet models are particularly parameter-efficient. For example, DenseNet-121 achieves 73.6% top-1 accuracy with only 7.95M parameters, making it an excellent choice for resource-constrained environments.
+
+The long-trained variant (`densenet121_long`) achieves significantly better performance (77.3% top-1) with the same architecture by using an extended training schedule (600 epochs) with TorchVision's improved training recipe.
+
+## References
+
+- [B-cos Networks: Alignment is All We Need for Interpretability](https://arxiv.org/abs/2205.10268)
+- [Densely Connected Convolutional Networks](https://arxiv.org/pdf/1608.06993.pdf)
+- [TorchVision's new recipe](https://pytorch.org/blog/how-to-train-state-of-the-art-models-using-torchvision-latest-primitives) (for long-trained models)

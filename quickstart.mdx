@@ -1,80 +1,140 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick start
+description: Get up and running with B-cos Networks in minutes
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
+Before you begin, ensure you have:
+- Python 3.7 or higher
+- PyTorch 1.13 or higher
+- torchvision
 
-### Step 1: Set up your local environment
+## Installation
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+Install the B-cos package using pip:
 
-### Step 2: Deploy your changes
+<CodeGroup>
+```bash pip
+pip install bcos
+```
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
+```bash conda
+conda install -c conda-forge bcos
+```
+</CodeGroup>
+
+<Note>
+  For training models from scratch, see the [Installation Guide](/installation) for the full development environment setup.
+</Note>
+
+## Load a pretrained model
+
+Load any of the 40+ pretrained B-cos models via `torch.hub`:
+
+```python
+import torch
+
+# List all available models
+available_models = torch.hub.list('B-cos/B-cos-v2')
+print(f"Available models: {len(available_models)}")
+
+# Load a pretrained B-cos ResNet-50
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+model.eval()
+```
+
+<Accordion title="See all available models">
+- **ResNets**: resnet18, resnet34, resnet50, resnet101, resnet152, resnext50_32x4d
+- **DenseNets**: densenet121, densenet161, densenet169, densenet201
+- **ConvNeXt**: convnext_tiny, convnext_base, convnext_tiny_bnu, convnext_base_bnu
+- **Vision Transformers**: simple_vit_ti/s/b/l_patch16_224, vitc_ti/s/b/l_patch1_14
+- **VGG**: vgg11_bnu
+
+See the [Model Zoo](/model-zoo/overview) for complete details.
 </Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Generate explanations
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Use the built-in `.explain()` method to visualize model predictions:
 
-### Step 3: Go live
+```python
+from PIL import Image
+import matplotlib.pyplot as plt
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+# Load and preprocess an image
+img = Image.open('cat.jpg')
+img_tensor = model.transform(img)  # Built-in preprocessing
+img_tensor = img_tensor[None].requires_grad_()
+
+# Generate prediction and explanation
+expl_out = model.explain(img_tensor)
+
+# Display results
+print(f"Predicted class: {expl_out['prediction']}")
+print(f"Confidence: {expl_out['logit_output'].max():.2f}")
+
+# Visualize explanation
+plt.figure(figsize=(10, 5))
+plt.subplot(1, 2, 1)
+plt.imshow(img)
+plt.title('Input Image')
+plt.axis('off')
+
+plt.subplot(1, 2, 2)
+plt.imshow(expl_out['explanation'])
+plt.title('B-cos Explanation')
+plt.axis('off')
+plt.show()
+```
+
+<Info>
+The explanation heatmap shows which regions of the input contributed most to the model's prediction. Red/warm colors indicate positive contributions, while blue/cool colors indicate negative contributions.
+</Info>
+
+## Understanding the output
+
+The `.explain()` method returns a dictionary with:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `prediction` | int | Predicted class index |
+| `logit_output` | Tensor | Raw logit scores for all classes |
+| `explanation` | ndarray | RGB+alpha explanation image (H, W, 4) |
+| `contribution_map` | Tensor | Spatial contribution map (1, H, W) |
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card
+    title="Explore the Model Zoo"
+    icon="layer-group"
+    href="/model-zoo/overview"
+  >
+    Browse all 40+ pretrained models with accuracy benchmarks
+  </Card>
+  
+  <Card
+    title="Fine-tune a Model"
+    icon="screwdriver-wrench"
+    href="/guides/fine-tuning"
+  >
+    Learn how to adapt B-cos models to your custom datasets
+  </Card>
+  
+  <Card
+    title="Advanced Explanations"
+    icon="chart-line"
+    href="/guides/explanation-visualization"
+  >
+    Customize and analyze model explanations in depth
+  </Card>
+  
+  <Card
+    title="Train Custom Models"
+    icon="rocket"
+    href="/guides/training-custom-models"
+  >
+    Train B-cos models from scratch on your own data
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

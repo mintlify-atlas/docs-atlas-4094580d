@@ -1,0 +1,197 @@
+---
+title: LogitLayer
+description: Temperature scaling and bias adjustment for output logits
+---
+
+## Overview
+
+`LogitLayer` is a simple transformation layer that applies temperature scaling and/or bias adjustment to logits. This is typically used as the final layer in B-cos models to calibrate the output predictions before computing loss or making predictions.
+
+## LogitLayer
+
+```python
+from bcos.modules import LogitLayer
+```
+
+### Constructor Parameters
+
+<ParamField path="logit_temperature" type="Optional[float]" default="None">
+  Temperature parameter for scaling logits. The input is divided by this value. If None, no temperature scaling is applied (equivalent to temperature=1.0).
+  
+  - Lower values (< 1.0) make the distribution sharper (more confident)
+  - Higher values (> 1.0) make the distribution softer (less confident)
+</ParamField>
+
+<ParamField path="logit_bias" type="Optional[float]" default="None">
+  Bias value added to logits. If None, no bias is added (equivalent to bias=0.0). This can be used to shift the decision boundary.
+</ParamField>
+
+### Methods
+
+#### forward
+
+```python
+def forward(self, in_tensor: Tensor) -> Tensor
+```
+
+Applies temperature scaling and bias to the input tensor.
+
+**Parameters:**
+- `in_tensor` (Tensor): Input logits tensor of any shape
+
+**Returns:**
+- Tensor: Transformed logits with the same shape as input
+
+**Transformation:**
+```python
+if logit_temperature is not None:
+    in_tensor = in_tensor / logit_temperature
+if logit_bias is not None:
+    in_tensor = in_tensor + logit_bias
+```
+
+### Usage Example
+
+```python
+import torch
+from bcos.modules import LogitLayer
+
+# Create logit layer with temperature scaling
+logit_layer = LogitLayer(logit_temperature=2.0)
+
+# Forward pass
+logits = torch.randn(8, 1000)  # Raw logits from model
+scaled_logits = logit_layer(logits)  # Scaled by temperature
+
+# With both temperature and bias
+logit_layer = LogitLayer(logit_temperature=1.5, logit_bias=-0.5)
+output = logit_layer(logits)
+```
+
+### Building Custom Models
+
+`LogitLayer` is typically used as the final layer in a B-cos classification model:
+
+```python
+import torch.nn as nn
+from bcos.modules import BcosConv2d, BcosLinear, LogitLayer
+from bcos.modules.norms import DetachableGNLayerNorm2d
+
+class BcosClassificationModel(nn.Module):
+    def __init__(self, num_classes=1000):
+        super().__init__()
+        self.features = nn.Sequential(
+            BcosConv2d(3, 64, kernel_size=3, padding=1, b=2),
+            DetachableGNLayerNorm2d(64),
+            nn.AdaptiveAvgPool2d(1),
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(1),
+            BcosLinear(64, num_classes, b=2),
+            LogitLayer(logit_temperature=1.0)  # Optional temperature scaling
+        )
+    
+    def forward(self, x):
+        x = self.features(x)
+        x = self.classifier(x)
+        return x
+```
+
+### Temperature Scaling for Calibration
+
+Temperature scaling is useful for model calibration, especially after training:
+
+```python
+import torch
+import torch.nn as nn
+from bcos.modules import LogitLayer
+
+class CalibratedModel(nn.Module):
+    """Wrapper to add temperature scaling to any model"""
+    def __init__(self, base_model, temperature=1.0):
+        super().__init__()
+        self.base_model = base_model
+        self.logit_layer = LogitLayer(logit_temperature=temperature)
+    
+    def forward(self, x):
+        logits = self.base_model(x)
+        return self.logit_layer(logits)
+
+# Example: Calibrate a trained model
+trained_model = ...  # Your trained B-cos model
+calibrated_model = CalibratedModel(trained_model, temperature=1.5)
+
+# Use calibrated model for inference
+images = torch.randn(8, 3, 224, 224)
+logits = calibrated_model(images)
+probs = torch.softmax(logits, dim=-1)  # More calibrated probabilities
+```
+
+### Finding Optimal Temperature
+
+You can tune the temperature on a validation set:
+
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from bcos.modules import LogitLayer
+
+def find_optimal_temperature(model, val_loader, device='cuda'):
+    """Find optimal temperature using validation set"""
+    model.eval()
+    
+    # Create a learnable temperature parameter
+    temperature = nn.Parameter(torch.ones(1, device=device))
+    optimizer = optim.LBFGS([temperature], lr=0.01, max_iter=50)
+    
+    def eval_loss():
+        loss = 0
+        with torch.no_grad():
+            for images, labels in val_loader:
+                images, labels = images.to(device), labels.to(device)
+                logits = model(images)
+                # Apply temperature scaling
+                scaled_logits = logits / temperature
+                loss += nn.functional.cross_entropy(scaled_logits, labels)
+        return loss
+    
+    # Optimize temperature
+    def closure():
+        optimizer.zero_grad()
+        loss = eval_loss()
+        loss.backward()
+        return loss
+    
+    optimizer.step(closure)
+    
+    return temperature.item()
+
+# Usage
+# optimal_temp = find_optimal_temperature(model, val_loader)
+# calibrated_model = CalibratedModel(model, temperature=optimal_temp)
+```
+
+### Common Configurations
+
+```python
+from bcos.modules import LogitLayer
+
+# No transformation (default)
+logit_layer = LogitLayer()  # or LogitLayer(None, None)
+
+# Temperature scaling only (for calibration)
+logit_layer = LogitLayer(logit_temperature=1.5)
+
+# Bias adjustment only (shift predictions)
+logit_layer = LogitLayer(logit_bias=-0.3)
+
+# Both temperature and bias
+logit_layer = LogitLayer(logit_temperature=2.0, logit_bias=-0.5)
+```
+
+## Related
+
+- [BcosLinear](/api/modules/bcos-linear) - Linear layer typically used before LogitLayer
+- [BcosConv2d](/api/modules/bcos-conv2d) - Convolutional layer for B-cos networks
+- [Model Zoo](/model-zoo/overview) - Pre-trained models using LogitLayer

@@ -1,0 +1,129 @@
+---
+title: Pretrained Models Overview
+description: Load pretrained B-cos models via torch.hub with support for ResNets, DenseNets, ConvNeXts, ViTs, and VGG architectures
+---
+
+# Pretrained Models Overview
+
+B-cos Networks v2 provides a comprehensive collection of pretrained models for inherently interpretable computer vision. All models are trained on ImageNet and can be loaded via `torch.hub`.
+
+## Quick Start
+
+### Loading Models
+
+All pretrained models can be loaded using PyTorch Hub:
+
+```python
+import torch
+
+# List all available models
+torch.hub.list('B-cos/B-cos-v2')
+
+# Load a pretrained model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+```
+
+### Inference and Explanation
+
+Each model comes with an attached transform and explanation capability:
+
+```python
+from PIL import Image
+import matplotlib.pyplot as plt
+
+# Load and transform image
+img = model.transform(Image.open('image.jpg'))
+img = img[None].requires_grad_()
+
+# Get prediction and explanation
+model.eval()
+expl_out = model.explain(img)
+print("Prediction:", expl_out["prediction"])
+plt.imshow(expl_out["explanation"])
+plt.show()
+```
+
+## Available Model Families
+
+### Convolutional Neural Networks
+
+- **[ResNet](/api/models/resnet)** - Residual Networks including ResNet-18/34/50/101/152 and ResNeXt-50
+- **[DenseNet](/api/models/densenet)** - Densely Connected Networks including DenseNet-121/161/169/201
+- **[ConvNeXt](/api/models/convnext)** - Modern ConvNets with various normalization schemes
+- **[VGG](/api/models/vgg)** - VGG-11 with Batch Normalization (no centering)
+
+### Vision Transformers
+
+- **[ViT](/api/models/vit)** - Vision Transformers including Simple ViT and ViT with convolutional stems
+
+## Model List
+
+All available model entrypoints:
+
+### ResNet Family
+- `resnet18`, `resnet34`, `resnet50`, `resnet101`, `resnet152`
+- `resnext50_32x4d`
+- `resnet50_long`, `resnet152_long` (trained for 600 epochs)
+
+### DenseNet Family
+- `densenet121`, `densenet161`, `densenet169`, `densenet201`
+- `densenet121_long` (trained for 600 epochs)
+
+### ConvNeXt Family
+- `convnext_tiny`, `convnext_base` (with HW-normalization)
+- `convnext_tiny_bnu`, `convnext_base_bnu` (with Batch Normalization, no centering)
+
+### ViT Family
+
+**B-cos ViT Models:**
+- `simple_vit_ti_patch16_224`, `simple_vit_s_patch16_224`, `simple_vit_b_patch16_224`, `simple_vit_l_patch16_224`
+- `vitc_ti_patch1_14`, `vitc_s_patch1_14`, `vitc_b_patch1_14`, `vitc_l_patch1_14`
+
+**Standard (non-B-cos) ViT Models:**
+- `standard_simple_vit_ti_patch16_224`, `standard_simple_vit_s_patch16_224`, `standard_simple_vit_b_patch16_224`, `standard_simple_vit_l_patch16_224`
+- `standard_vitc_ti_patch1_14`, `standard_vitc_s_patch1_14`, `standard_vitc_b_patch1_14`, `standard_vitc_l_patch1_14`
+
+### VGG Family
+- `vgg11_bnu`
+
+## Common Parameters
+
+All model entrypoint functions share these parameters:
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+## Model Properties
+
+Each loaded model has the following attached properties:
+
+- **`model.config`** - The configuration used to create the model
+- **`model.transform`** - The preprocessing transform for inference
+- **`model.explain()`** - Method to generate predictions and explanations
+- **`model.get_classifier()`** - Returns the classifier module
+- **`model.get_feature_extractor()`** - Returns the feature extractor module
+
+## Requirements
+
+- **ViT models** require `einops` to be installed: `pip install einops`
+- All other models only require `torch` and `torchvision`
+
+## Model Weights
+
+All model weights are hosted on GitHub releases and are automatically downloaded via `torch.hub.load_state_dict_from_url` with hash verification.
+
+Weights are available at: [B-cos-v2 Releases](https://github.com/B-cos/B-cos-v2/releases/tag/v0.0.1-weights)
+
+## References
+
+- [B-cos Networks: Alignment is All We Need for Interpretability](https://arxiv.org/abs/2205.10268)
+- [B-cos Alignment for Inherently Interpretable CNNs and Vision Transformers](https://arxiv.org/abs/2306.10898)

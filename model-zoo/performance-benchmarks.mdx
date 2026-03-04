@@ -1,0 +1,430 @@
+---
+title: Performance Benchmarks
+description: Comprehensive performance comparisons of B-cos models showing accuracy, parameter efficiency, and compute trade-offs across architectures.
+---
+
+# Performance Benchmarks
+
+This page provides comprehensive benchmarks comparing all models in the B-cos Model Zoo across multiple dimensions: accuracy, parameter count, and computational efficiency.
+
+## Overall Top Performers
+
+### Top-10 Models by Accuracy
+
+| Rank | Model | Architecture | Top-1 Acc | Top-5 Acc | Parameters | Type |
+|------|-------|--------------|-----------|-----------|------------|------|
+| 1 | convnext_base_bnu | CNN | 80.142% | 94.834% | 88.47M | B-cos |
+| 2 | resnet152_long | CNN | 80.144% | 94.116% | 60.13M | B-cos |
+| 3 | convnext_base | CNN | 79.650% | 94.614% | 88.47M | B-cos |
+| 4 | resnet50_long | CNN | 79.468% | 94.452% | 25.52M | B-cos |
+| 5 | standard_vitc_l_patch1_14 | ViT | 77.866% | 92.298% | 167.54M | Standard |
+| 6 | vitc_l_patch1_14 | ViT | 77.782% | 92.966% | 167.44M | B-cos |
+| 7 | convnext_tiny | CNN | 77.488% | 93.192% | 28.54M | B-cos |
+| 8 | densenet121_long | CNN | 77.302% | 93.234% | 7.95M | B-cos |
+| 9 | vitc_b_patch1_14 | ViT | 77.152% | 92.926% | 81.37M | B-cos |
+| 10 | standard_vitc_b_patch1_14 | ViT | 76.790% | 92.024% | 81.39M | Standard |
+
+---
+
+## Accuracy vs Parameters
+
+### CNN Models
+
+| Model | Parameters | Top-1 Acc | Acc per Million Params |
+|-------|-----------|-----------|------------------------|
+| densenet121_long | 7.95M | 77.302% | 9.72 |
+| resnet18 | 11.69M | 68.736% | 5.88 |
+| densenet121 | 7.95M | 73.612% | 9.26 |
+| densenet169 | 14.08M | 75.186% | 5.34 |
+| densenet201 | 19.91M | 75.480% | 3.79 |
+| resnet34 | 21.80M | 72.284% | 3.32 |
+| resnext50_32x4d | 25.00M | 75.820% | 3.03 |
+| resnet50 | 25.52M | 75.882% | 2.97 |
+| resnet50_long | 25.52M | 79.468% | 3.11 |
+| convnext_tiny | 28.54M | 77.488% | 2.71 |
+| convnext_tiny_bnu | 28.54M | 76.826% | 2.69 |
+| densenet161 | 28.58M | 76.622% | 2.68 |
+| resnet101 | 44.50M | 76.532% | 1.72 |
+| resnet152 | 60.13M | 76.484% | 1.27 |
+| resnet152_long | 60.13M | 80.144% | 1.33 |
+| convnext_base | 88.47M | 79.650% | 0.90 |
+| convnext_base_bnu | 88.47M | 80.142% | 0.91 |
+| vgg11_bnu | 132.86M | 69.310% | 0.52 |
+
+### Vision Transformer Models (B-cos)
+
+| Model | Parameters | Top-1 Acc | Acc per Million Params |
+|-------|-----------|-----------|------------------------|
+| vitc_ti_patch1_14 | 5.32M | 67.260% | 12.64 |
+| simple_vit_ti_patch16_224 | 5.80M | 59.960% | 10.34 |
+| vitc_s_patch1_14 | 20.88M | 74.504% | 3.57 |
+| simple_vit_s_patch16_224 | 22.28M | 69.246% | 3.11 |
+| vitc_b_patch1_14 | 81.37M | 77.152% | 0.95 |
+| simple_vit_b_patch16_224 | 86.90M | 74.408% | 0.86 |
+| vitc_l_patch1_14 | 167.44M | 77.782% | 0.46 |
+| simple_vit_l_patch16_224 | 178.79M | 75.060% | 0.42 |
+
+### Vision Transformer Models (Standard)
+
+| Model | Parameters | Top-1 Acc | Acc per Million Params |
+|-------|-----------|-----------|------------------------|
+| standard_vitc_ti_patch1_14 | 5.33M | 72.590% | 13.62 |
+| standard_simple_vit_ti_patch16_224 | 5.67M | 70.230% | 12.39 |
+| standard_vitc_s_patch1_14 | 20.91M | 75.756% | 3.62 |
+| standard_simple_vit_s_patch16_224 | 21.96M | 74.470% | 3.39 |
+| standard_vitc_b_patch1_14 | 81.39M | 76.790% | 0.94 |
+| standard_simple_vit_b_patch16_224 | 86.38M | 75.300% | 0.87 |
+| standard_vitc_l_patch1_14 | 167.54M | 77.866% | 0.46 |
+| standard_simple_vit_l_patch16_224 | 178.10M | 75.710% | 0.43 |
+
+---
+
+## Architecture Family Comparisons
+
+### ResNet Family Performance
+
+| Model | Parameters | Top-1 Acc | Top-5 Acc | Training |
+|-------|-----------|-----------|-----------|----------|
+| resnet18 | 11.69M | 68.736% | 87.430% | Standard |
+| resnet34 | 21.80M | 72.284% | 90.052% | Standard |
+| resnet50 | 25.52M | 75.882% | 92.528% | Standard |
+| resnet50_long | 25.52M | 79.468% | 94.452% | Extended |
+| resnet101 | 44.50M | 76.532% | 92.538% | Standard |
+| resnet152 | 60.13M | 76.484% | 92.398% | Standard |
+| resnet152_long | 60.13M | 80.144% | 94.116% | Extended |
+| resnext50_32x4d | 25.00M | 75.820% | 91.810% | Standard |
+
+**Key Insights:**
+- Extended training adds ~3.5-3.7% accuracy
+- Diminishing returns beyond ResNet-50 with standard training
+- ResNet-152 long achieves 80.14% - among the best overall
+
+### DenseNet Family Performance
+
+| Model | Parameters | Top-1 Acc | Top-5 Acc | Training |
+|-------|-----------|-----------|-----------|----------|
+| densenet121 | 7.95M | 73.612% | 91.106% | Standard |
+| densenet121_long | 7.95M | 77.302% | 93.234% | Extended |
+| densenet169 | 14.08M | 75.186% | 91.786% | Standard |
+| densenet201 | 19.91M | 75.480% | 91.992% | Standard |
+| densenet161 | 28.58M | 76.622% | 92.554% | Standard |
+
+**Key Insights:**
+- Best parameter efficiency: DenseNet-121 long achieves 77.3% with only 7.95M params
+- Extended training adds ~3.7% accuracy
+- Excellent choice for resource-constrained environments
+
+### ConvNeXt Family Performance
+
+| Model | Parameters | Top-1 Acc | Top-5 Acc | Normalization |
+|-------|-----------|-----------|-----------|---------------|
+| convnext_tiny | 28.54M | 77.488% | 93.192% | HW |
+| convnext_tiny_bnu | 28.54M | 76.826% | 93.090% | BNU |
+| convnext_base | 88.47M | 79.650% | 94.614% | HW |
+| convnext_base_bnu | 88.47M | 80.142% | 94.834% | BNU |
+
+**Key Insights:**
+- Best overall CNN performance
+- BNU normalization slightly better for Base, slightly worse for Tiny
+- All models trained for 600 epochs with modern techniques
+
+### Simple ViT Family Performance
+
+| Model Type | Size | Parameters | Top-1 Acc | Top-5 Acc |
+|-----------|------|-----------|-----------|----------|
+| B-cos | Ti | 5.80M | 59.960% | 81.838% |
+| B-cos | S | 22.28M | 69.246% | 88.096% |
+| B-cos | B | 86.90M | 74.408% | 91.156% |
+| B-cos | L | 178.79M | 75.060% | 91.378% |
+| Standard | Ti | 5.67M | 70.230% | 89.380% |
+| Standard | S | 21.96M | 74.470% | 91.226% |
+| Standard | B | 86.38M | 75.300% | 91.026% |
+| Standard | L | 178.10M | 75.710% | 90.050% |
+
+**Key Insights:**
+- Accuracy gap narrows with larger models
+- B-cos Large nearly matches Standard Large
+- Standard models 5-10% better for smaller sizes
+
+### ViT-C Family Performance
+
+| Model Type | Size | Parameters | Top-1 Acc | Top-5 Acc |
+|-----------|------|-----------|-----------|----------|
+| B-cos | Ti | 5.32M | 67.260% | 86.774% |
+| B-cos | S | 20.88M | 74.504% | 91.288% |
+| B-cos | B | 81.37M | 77.152% | 92.926% |
+| B-cos | L | 167.44M | 77.782% | 92.966% |
+| Standard | Ti | 5.33M | 72.590% | 90.788% |
+| Standard | S | 20.91M | 75.756% | 91.994% |
+| Standard | B | 81.39M | 76.790% | 92.024% |
+| Standard | L | 167.54M | 77.866% | 92.298% |
+
+**Key Insights:**
+- Convolutional stem significantly helps ViTs
+- B-cos ViT-C Base actually outperforms Standard by 0.36%
+- Near-parity achieved at Base and Large sizes
+
+---
+
+## Size Category Analysis
+
+### Tiny Models (< 10M parameters)
+
+| Model | Parameters | Top-1 Acc | Type |
+|-------|-----------|-----------|------|
+| densenet121_long | 7.95M | 77.302% | B-cos CNN |
+| densenet121 | 7.95M | 73.612% | B-cos CNN |
+| standard_vitc_ti_patch1_14 | 5.33M | 72.590% | Standard ViT |
+| resnet18 | 11.69M | 68.736% | B-cos CNN |
+| vitc_ti_patch1_14 | 5.32M | 67.260% | B-cos ViT |
+| standard_simple_vit_ti_patch16_224 | 5.67M | 70.230% | Standard ViT |
+| simple_vit_ti_patch16_224 | 5.80M | 59.960% | B-cos ViT |
+
+**Winner:** densenet121_long (77.30%, 7.95M)
+
+### Small Models (10-30M parameters)
+
+| Model | Parameters | Top-1 Acc | Type |
+|-------|-----------|-----------|------|
+| convnext_tiny | 28.54M | 77.488% | B-cos CNN |
+| densenet161 | 28.58M | 76.622% | B-cos CNN |
+| convnext_tiny_bnu | 28.54M | 76.826% | B-cos CNN |
+| resnet50 | 25.52M | 75.882% | B-cos CNN |
+| resnext50_32x4d | 25.00M | 75.820% | B-cos CNN |
+| standard_vitc_s_patch1_14 | 20.91M | 75.756% | Standard ViT |
+| densenet201 | 19.91M | 75.480% | B-cos CNN |
+| densenet169 | 14.08M | 75.186% | B-cos CNN |
+| vitc_s_patch1_14 | 20.88M | 74.504% | B-cos ViT |
+| standard_simple_vit_s_patch16_224 | 21.96M | 74.470% | Standard ViT |
+| resnet34 | 21.80M | 72.284% | B-cos CNN |
+| simple_vit_s_patch16_224 | 22.28M | 69.246% | B-cos ViT |
+
+**Winner:** convnext_tiny (77.49%, 28.54M)
+
+### Medium Models (30-90M parameters)
+
+| Model | Parameters | Top-1 Acc | Type |
+|-------|-----------|-----------|------|
+| convnext_base_bnu | 88.47M | 80.142% | B-cos CNN |
+| convnext_base | 88.47M | 79.650% | B-cos CNN |
+| resnet152_long | 60.13M | 80.144% | B-cos CNN |
+| vitc_b_patch1_14 | 81.37M | 77.152% | B-cos ViT |
+| standard_vitc_b_patch1_14 | 81.39M | 76.790% | Standard ViT |
+| resnet152 | 60.13M | 76.484% | B-cos CNN |
+| resnet101 | 44.50M | 76.532% | B-cos CNN |
+| standard_simple_vit_b_patch16_224 | 86.38M | 75.300% | Standard ViT |
+| simple_vit_b_patch16_224 | 86.90M | 74.408% | B-cos ViT |
+
+**Winner:** resnet152_long (80.14%, 60.13M)
+
+### Large Models (> 90M parameters)
+
+| Model | Parameters | Top-1 Acc | Type |
+|-------|-----------|-----------|------|
+| standard_vitc_l_patch1_14 | 167.54M | 77.866% | Standard ViT |
+| vitc_l_patch1_14 | 167.44M | 77.782% | B-cos ViT |
+| standard_simple_vit_l_patch16_224 | 178.10M | 75.710% | Standard ViT |
+| simple_vit_l_patch16_224 | 178.79M | 75.060% | B-cos ViT |
+| vgg11_bnu | 132.86M | 69.310% | B-cos CNN |
+
+**Winner:** standard_vitc_l_patch1_14 (77.87%, 167.54M)
+
+---
+
+## Training Strategy Impact
+
+### Standard vs Extended Training
+
+| Model Base | Standard Acc | Extended Acc | Improvement | Epochs |
+|-----------|-------------|-------------|-------------|--------|
+| ResNet-50 | 75.882% | 79.468% | +3.586% | 300 → 600 |
+| ResNet-152 | 76.484% | 80.144% | +3.660% | 300 → 600 |
+| DenseNet-121 | 73.612% | 77.302% | +3.690% | 300 → 600 |
+
+**Key Insights:**
+- Consistent ~3.6% improvement from extended training
+- All extended models trained with AMP and EMA
+- Significant gains justify the additional compute
+
+### B-cos vs Standard Training
+
+#### Tiny Models
+
+| Architecture | B-cos Acc | Standard Acc | Gap |
+|-------------|-----------|--------------|-----|
+| Simple ViT-Ti | 59.96% | 70.23% | -10.27% |
+| ViT-C Ti | 67.26% | 72.59% | -5.33% |
+
+#### Small Models
+
+| Architecture | B-cos Acc | Standard Acc | Gap |
+|-------------|-----------|--------------|-----|
+| Simple ViT-S | 69.25% | 74.47% | -5.22% |
+| ViT-C S | 74.50% | 75.76% | -1.26% |
+
+#### Base Models
+
+| Architecture | B-cos Acc | Standard Acc | Gap |
+|-------------|-----------|--------------|-----|
+| Simple ViT-B | 74.41% | 75.30% | -0.89% |
+| ViT-C B | 77.15% | 76.79% | +0.36% |
+
+#### Large Models
+
+| Architecture | B-cos Acc | Standard Acc | Gap |
+|-------------|-----------|--------------|-----|
+| Simple ViT-L | 75.06% | 75.71% | -0.65% |
+| ViT-C L | 77.78% | 77.87% | -0.09% |
+
+**Key Insights:**
+- Gap decreases dramatically with model size
+- ViT-C architectures close the gap better than Simple ViT
+- B-cos ViT-C Base actually exceeds Standard performance
+- Large models achieve near-parity with interpretability benefits
+
+---
+
+## Recommendations by Use Case
+
+### Edge Deployment (Low Memory)
+
+**Best Choice:** densenet121_long
+- 7.95M parameters
+- 77.30% accuracy
+- Excellent efficiency
+
+**Alternatives:**
+- densenet121: 7.95M, 73.61% (standard training)
+- vitc_ti_patch1_14: 5.32M, 67.26% (if ViT preferred)
+- resnet18: 11.69M, 68.74% (if ResNet preferred)
+
+### Production Deployment (Balanced)
+
+**Best Choice:** convnext_tiny
+- 28.54M parameters
+- 77.49% accuracy
+- Modern architecture
+
+**Alternatives:**
+- resnet50_long: 25.52M, 79.47% (if extended training acceptable)
+- densenet161: 28.58M, 76.62%
+- vitc_s_patch1_14: 20.88M, 74.50% (if ViT preferred)
+
+### Research & Benchmarking
+
+**Best Choice:** convnext_base_bnu or resnet152_long
+- 80.14% accuracy (both)
+- State-of-the-art performance
+- Different architecture paradigms
+
+**Alternatives:**
+- convnext_base: 88.47M, 79.65%
+- resnet50_long: 25.52M, 79.47% (more efficient)
+- vitc_b_patch1_14: 81.37M, 77.15% (if ViT preferred)
+
+### Interpretability Focus
+
+**Best Choice:** vitc_b_patch1_14
+- 77.15% accuracy
+- Strong B-cos explanations
+- Competitive with standard models
+
+**Alternatives:**
+- convnext_tiny: 28.54M, 77.49% (CNN interpretability)
+- densenet121_long: 7.95M, 77.30% (efficient + interpretable)
+- resnet50_long: 25.52M, 79.47% (higher accuracy)
+
+### Fine-tuning Base Models
+
+**Best Choice:** resnet50
+- Well-established architecture
+- 75.88% accuracy
+- Extensive transfer learning research
+
+**Alternatives:**
+- vitc_s_patch1_14: 20.88M, 74.50% (if ViT preferred)
+- densenet121: 7.95M, 73.61% (if efficiency critical)
+- convnext_tiny: 28.54M, 77.49% (modern architecture)
+
+---
+
+## Compute Considerations
+
+### Inference Speed (Relative)
+
+Based on typical GPU inference characteristics:
+
+**Fastest:**
+1. ResNet-18, ResNet-34 (efficient convolutions)
+2. DenseNet-121 (efficient architecture)
+3. ResNet-50, ResNeXt-50
+
+**Medium:**
+1. ConvNeXt-Tiny
+2. DenseNet-161/169/201
+3. ResNet-101
+4. ViT-C Tiny/Small (conv stem helps)
+
+**Slower:**
+1. ResNet-152
+2. ConvNeXt-Base
+3. ViT-C Base
+4. Simple ViT Small/Base
+
+**Slowest:**
+1. ViT-C Large
+2. Simple ViT Large
+3. VGG-11 (large parameter count)
+
+### Memory Footprint
+
+**Low (< 50MB):**
+- DenseNet-121: 7.95M
+- ViT-C Ti: 5.32M
+- Simple ViT-Ti: 5.80M
+- ResNet-18: 11.69M
+
+**Medium (50-150MB):**
+- ResNet-34/50/101
+- DenseNet-161/169/201
+- ViT-C S, Simple ViT-S
+- ConvNeXt-Tiny
+
+**High (> 150MB):**
+- ResNet-152: 60.13M
+- ViT-C B/L, Simple ViT-B/L
+- ConvNeXt-Base: 88.47M
+- VGG-11: 132.86M
+
+---
+
+## Summary Statistics
+
+### Overall Statistics
+
+- **Total Models:** 42 (28 B-cos, 8 Standard, 6 Extended Training)
+- **Architecture Types:** CNNs (18), ViTs (24)
+- **Parameter Range:** 5.32M - 178.79M
+- **Accuracy Range:** 59.96% - 80.14%
+- **Best Accuracy:** 80.142% (convnext_base_bnu)
+- **Best Efficiency:** 77.302% with 7.95M params (densenet121_long)
+
+### By Architecture Type
+
+**CNNs:**
+- Count: 18 models
+- Accuracy Range: 68.74% - 80.14%
+- Parameter Range: 7.95M - 132.86M
+- Best: convnext_base_bnu (80.14%)
+
+**B-cos ViTs:**
+- Count: 8 models
+- Accuracy Range: 59.96% - 77.78%
+- Parameter Range: 5.32M - 178.79M
+- Best: vitc_l_patch1_14 (77.78%)
+
+**Standard ViTs:**
+- Count: 8 models
+- Accuracy Range: 70.23% - 77.87%
+- Parameter Range: 5.33M - 178.10M
+- Best: standard_vitc_l_patch1_14 (77.87%)

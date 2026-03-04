@@ -1,0 +1,199 @@
+---
+title: ConvNeXt Models
+description: B-cos ConvNeXt pretrained models with various normalization schemes and training configurations
+---
+
+# ConvNeXt Models
+
+B-cos ConvNeXt models are modern convolutional networks designed for the 2020s, adapted for inherently interpretable predictions. These models achieve state-of-the-art accuracy among B-cos networks.
+
+## Available Models
+
+| Model | Normalization | Acc@1 | Acc@5 | Params | Entrypoint |
+|-------|--------------|-------|-------|--------|------------|
+| ConvNeXt-T | HW-norm | 77.488% | 93.192% | 28.54M | `convnext_tiny` |
+| ConvNeXt-B | HW-norm | 79.650% | 94.614% | 88.47M | `convnext_base` |
+| ConvNeXt-T | BNU | 76.826% | 93.090% | 28.54M | `convnext_tiny_bnu` |
+| ConvNeXt-B | BNU | 80.142% | 94.834% | 88.47M | `convnext_base_bnu` |
+
+**Note:** All ConvNeXt models were trained for 600 epochs with AMP (Automatic Mixed Precision). HW-norm refers to height-width normalization, while BNU refers to Batch Normalization without centering.
+
+## Usage
+
+### Basic Usage
+
+```python
+import torch
+
+# Load pretrained ConvNeXt-Tiny
+model = torch.hub.load('B-cos/B-cos-v2', 'convnext_tiny', pretrained=True)
+
+# Load BNU variant
+model = torch.hub.load('B-cos/B-cos-v2', 'convnext_base_bnu', pretrained=True)
+```
+
+### Inference Example
+
+```python
+from PIL import Image
+import matplotlib.pyplot as plt
+
+# Load and preprocess image
+img = Image.open('image.jpg')
+img_tensor = model.transform(img).unsqueeze(0).requires_grad_()
+
+# Get prediction with explanation
+model.eval()
+expl_out = model.explain(img_tensor)
+print(f"Predicted class: {expl_out['prediction']}")
+plt.imshow(expl_out['explanation'])
+plt.show()
+```
+
+## API Reference
+
+### convnext_tiny
+
+```python
+convnext_tiny(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos ConvNeXt-Tiny model with HW-normalization.
+
+The weights are from epoch 596's EMA checkpoint. The model was trained with AMP for 600 epochs.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ConvNeXt-T model
+
+**Metrics:**
+- Acc@1: 77.488%
+- Acc@5: 93.192%
+- Parameters: 28.54M
+
+---
+
+### convnext_base
+
+```python
+convnext_base(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos ConvNeXt-Base model with HW-normalization.
+
+The weights are from epoch 581's non-EMA checkpoint. The model was trained with AMP for 600 epochs.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ConvNeXt-B model
+
+**Metrics:**
+- Acc@1: 79.650%
+- Acc@5: 94.614%
+- Parameters: 88.47M
+
+---
+
+### convnext_tiny_bnu
+
+```python
+convnext_tiny_bnu(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos ConvNeXt-Tiny model with Batch Normalization without centering (BNU).
+
+The weights are from epoch 456's EMA checkpoint. The model was trained with AMP for 600 epochs.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ConvNeXt-T (BNU) model
+
+**Metrics:**
+- Acc@1: 76.826%
+- Acc@5: 93.090%
+- Parameters: 28.54M
+
+---
+
+### convnext_base_bnu
+
+```python
+convnext_base_bnu(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos ConvNeXt-Base model with Batch Normalization without centering (BNU).
+
+The weights are from epoch 541's EMA checkpoint. The model was trained with AMP for 600 epochs.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ConvNeXt-B (BNU) model
+
+**Metrics:**
+- Acc@1: 80.142%
+- Acc@5: 94.834%
+- Parameters: 88.47M
+
+## Notes
+
+### Normalization Schemes
+
+ConvNeXt models are available with two normalization schemes:
+
+1. **HW-normalization** (`convnext_tiny`, `convnext_base`) - Height-width normalization for spatial features
+2. **BNU** (`convnext_tiny_bnu`, `convnext_base_bnu`) - Batch Normalization without centering, better suited for B-cos alignment
+
+The BNU variants achieve the highest accuracy, with ConvNeXt-Base-BNU reaching 80.142% top-1 accuracy.
+
+### Training Details
+
+All ConvNeXt models were trained for 600 epochs using:
+- TorchVision's improved training recipe
+- Automatic Mixed Precision (AMP)
+- EMA (Exponential Moving Average) for some checkpoints
+
+## References
+
+- [B-cos Networks: Alignment is All We Need for Interpretability](https://arxiv.org/abs/2205.10268)
+- [A ConvNet for the 2020s](https://arxiv.org/abs/2201.03545)
+- [TorchVision's new recipe](https://pytorch.org/blog/how-to-train-state-of-the-art-models-using-torchvision-latest-primitives)

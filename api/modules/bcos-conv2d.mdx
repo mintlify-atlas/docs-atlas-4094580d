@@ -1,0 +1,197 @@
+---
+title: BcosConv2d
+description: 2D convolution layer with unit norm weights and cosine similarity activation
+---
+
+## Overview
+
+`BcosConv2d` is a 2D convolutional layer that uses unit norm weights and a cosine similarity activation function. The cosine similarity is calculated between the convolutional patch and the weight vector, and the output is scaled by the cosine similarity raised to the power of (B-1).
+
+See the paper for more details: [B-cos Networks: Alignment is All We Need for Interpretability](https://arxiv.org/abs/2205.10268)
+
+## BcosConv2d
+
+```python
+from bcos.modules import BcosConv2d
+```
+
+### Constructor Parameters
+
+<ParamField path="in_channels" type="int" required>
+  Number of channels in the input image
+</ParamField>
+
+<ParamField path="out_channels" type="int" required>
+  Number of channels produced by the convolution
+</ParamField>
+
+<ParamField path="kernel_size" type="int | tuple[int, ...]" default="1">
+  Size of the convolving kernel
+</ParamField>
+
+<ParamField path="stride" type="int | tuple[int, ...]" default="1">
+  Stride of the convolution
+</ParamField>
+
+<ParamField path="padding" type="int | tuple[int, ...]" default="0">
+  Zero-padding added to both sides of the input
+</ParamField>
+
+<ParamField path="dilation" type="int | tuple[int, ...]" default="1">
+  Spacing between kernel elements. Note: dilation > 1 is much slower!
+</ParamField>
+
+<ParamField path="groups" type="int" default="1">
+  Number of blocked connections from input channels to output channels
+</ParamField>
+
+<ParamField path="padding_mode" type="str" default="'zeros'">
+  Padding mode. One of `'zeros'`, `'reflect'`, `'replicate'` or `'circular'`
+</ParamField>
+
+<ParamField path="device" type="Optional[torch.device]">
+  The device of the weights
+</ParamField>
+
+<ParamField path="dtype" type="Optional[torch.dtype]">
+  The dtype of the weights
+</ParamField>
+
+<ParamField path="b" type="int | float" default="2">
+  The base of the exponential used to scale the cosine similarity. When B=1, no additional scaling is applied. When B=2, the scaling is |cos|.
+</ParamField>
+
+<ParamField path="max_out" type="int" default="1">
+  Number of MaxOut units to use. If 1, no MaxOut is used. Must be greater than 0.
+</ParamField>
+
+### Methods
+
+#### forward
+
+```python
+def forward(self, in_tensor: Tensor) -> Tensor
+```
+
+Forward pass implementation.
+
+**Parameters:**
+- `in_tensor` (Tensor): Input tensor with shape (B, C, H, W)
+
+**Returns:**
+- Tensor: BcosConv2d output on the input tensor
+
+### Usage Example
+
+```python
+import torch
+from bcos.modules import BcosConv2d
+
+# Create a B-cos convolutional layer
+conv = BcosConv2d(
+    in_channels=3,
+    out_channels=64,
+    kernel_size=3,
+    stride=1,
+    padding=1,
+    b=2
+)
+
+# Forward pass
+input_tensor = torch.randn(8, 3, 224, 224)
+output = conv(input_tensor)  # Shape: (8, 64, 224, 224)
+```
+
+### Building Custom Models
+
+You can use `BcosConv2d` as a drop-in replacement for `nn.Conv2d` when building custom B-cos models:
+
+```python
+import torch.nn as nn
+from bcos.modules import BcosConv2d, BcosSequential
+from bcos.modules.norms import DetachableGNLayerNorm2d
+
+class CustomBcosBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, b=2):
+        super().__init__()
+        self.conv1 = BcosConv2d(
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            padding=1,
+            b=b
+        )
+        self.norm = DetachableGNLayerNorm2d(out_channels)
+        self.conv2 = BcosConv2d(
+            out_channels,
+            out_channels,
+            kernel_size=3,
+            padding=1,
+            b=b
+        )
+    
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.norm(x)
+        x = self.conv2(x)
+        return x
+
+class CustomBcosModel(nn.Module):
+    def __init__(self, num_classes=1000):
+        super().__init__()
+        self.features = BcosSequential(
+            BcosConv2d(3, 64, kernel_size=7, stride=2, padding=3, b=2),
+            DetachableGNLayerNorm2d(64),
+            nn.MaxPool2d(3, stride=2, padding=1),
+            CustomBcosBlock(64, 128),
+            nn.AdaptiveAvgPool2d(1),
+        )
+        from bcos.modules import BcosLinear, LogitLayer
+        self.classifier = nn.Sequential(
+            nn.Flatten(1),
+            BcosLinear(128, num_classes, b=2),
+            LogitLayer()
+        )
+    
+    def forward(self, x):
+        x = self.features(x)
+        x = self.classifier(x)
+        return x
+```
+
+## BcosConv2dWithScale
+
+<Warning>
+  `BcosConv2dWithScale` is deprecated and will be removed in a future version. Use `BcosConv2d` instead.
+</Warning>
+
+```python
+from bcos.modules import BcosConv2dWithScale
+```
+
+This variant includes an additional scale parameter for backward compatibility with the original B-cos v1 implementation. It inherits all parameters from `BcosConv2d` and adds:
+
+<ParamField path="scale" type="Optional[float]">
+  Custom scale value. If None, uses default initialization: `(kernel_size * sqrt(in_channels)) / scale_factor`
+</ParamField>
+
+<ParamField path="scale_factor" type="int | float" default="100.0">
+  Denominator for default scale calculation
+</ParamField>
+
+## NormedConv2d
+
+A standard 2D convolution with unit norm weights (internal component used by `BcosConv2d`):
+
+```python
+from bcos.modules.bcosconv2d import NormedConv2d
+
+# Standard Conv2d but weights are normalized to unit norm
+conv = NormedConv2d(in_channels=3, out_channels=64, kernel_size=3)
+```
+
+## Related
+
+- [BcosLinear](/api/modules/bcos-linear) - Linear layer with B-cos transform
+- [Normalization Layers](/api/modules/norms) - Compatible normalization layers
+- [LogitLayer](/api/modules/logit-layer) - Output logit transformation layer

@@ -1,0 +1,195 @@
+---
+title: BcosLinear
+description: Linear layer with unit norm weights and cosine similarity activation
+---
+
+## Overview
+
+`BcosLinear` is a linear transformation layer that uses unit norm weights and a cosine similarity activation function. The cosine similarity is calculated between the input vector and the weight vector, and the output is scaled by the cosine similarity raised to the power of (B-1).
+
+See the paper for more details: [B-cos Networks: Alignment is All We Need for Interpretability](https://arxiv.org/abs/2205.10268)
+
+<Note>
+  In case you're wondering why convolution models don't use `BcosLinear`, it's because maintaining two versions of essentially the same thing would be very error-prone during development and testing. They use the same underlying principles but are optimized for their respective operations.
+</Note>
+
+## BcosLinear
+
+```python
+from bcos.modules import BcosLinear
+```
+
+### Constructor Parameters
+
+<ParamField path="in_features" type="int" required>
+  Number of input features
+</ParamField>
+
+<ParamField path="out_features" type="int" required>
+  Number of output features
+</ParamField>
+
+<ParamField path="bias" type="bool" default="False">
+  This parameter is ignored. BcosLinear does not support bias.
+</ParamField>
+
+<ParamField path="device" type="Optional[torch.device]">
+  The device of the weights
+</ParamField>
+
+<ParamField path="dtype" type="Optional[torch.dtype]">
+  The dtype of the weights
+</ParamField>
+
+<ParamField path="b" type="int | float" default="2">
+  The base of the exponential used to scale the cosine similarity. When B=1, no additional scaling is applied. When B=2, the scaling is |cos|.
+</ParamField>
+
+<ParamField path="max_out" type="int" default="1">
+  The number of output vectors to use. If this is greater than 1, the output is calculated as the maximum of `max_out` vectors. This is equivalent to using a MaxOut activation function.
+</ParamField>
+
+### Methods
+
+#### forward
+
+```python
+def forward(self, in_tensor: Tensor) -> Tensor
+```
+
+Forward pass.
+
+**Parameters:**
+- `in_tensor` (Tensor): Input tensor with shape (*, H_in) where * means any number of dimensions
+
+**Returns:**
+- Tensor: B-cos Linear output with shape (*, H_out)
+
+### Usage Example
+
+```python
+import torch
+from bcos.modules import BcosLinear
+
+# Create a B-cos linear layer
+linear = BcosLinear(
+    in_features=512,
+    out_features=1000,
+    b=2
+)
+
+# Forward pass
+input_tensor = torch.randn(32, 512)  # Batch of 32 samples
+output = linear(input_tensor)  # Shape: (32, 1000)
+```
+
+### Building Custom Models
+
+You can use `BcosLinear` to build custom classification heads or fully connected B-cos models:
+
+```python
+import torch
+import torch.nn as nn
+from bcos.modules import BcosLinear, LogitLayer
+
+# Simple classifier head
+class BcosClassifier(nn.Module):
+    def __init__(self, in_features, num_classes, hidden_dim=256, b=2):
+        super().__init__()
+        self.classifier = nn.Sequential(
+            BcosLinear(in_features, hidden_dim, b=b),
+            BcosLinear(hidden_dim, num_classes, b=b),
+            LogitLayer(logit_temperature=1.0)
+        )
+    
+    def forward(self, x):
+        return self.classifier(x)
+
+# Usage
+classifier = BcosClassifier(in_features=2048, num_classes=1000)
+features = torch.randn(8, 2048)
+logits = classifier(features)
+```
+
+### Fully Connected B-cos Network
+
+```python
+import torch.nn as nn
+from bcos.modules import BcosLinear, LogitLayer
+from bcos.modules.norms import DetachableLayerNorm
+
+class FCBcosNet(nn.Module):
+    """Fully connected B-cos network for tabular data or flattened images"""
+    def __init__(self, input_dim, num_classes, hidden_dims=[512, 256, 128], b=2):
+        super().__init__()
+        
+        layers = []
+        prev_dim = input_dim
+        
+        # Hidden layers
+        for hidden_dim in hidden_dims:
+            layers.append(BcosLinear(prev_dim, hidden_dim, b=b))
+            layers.append(DetachableLayerNorm([hidden_dim]))
+            prev_dim = hidden_dim
+        
+        # Output layer
+        layers.append(BcosLinear(prev_dim, num_classes, b=b))
+        layers.append(LogitLayer())
+        
+        self.network = nn.Sequential(*layers)
+    
+    def forward(self, x):
+        # Flatten if needed
+        if x.dim() > 2:
+            x = x.flatten(1)
+        return self.network(x)
+
+# Create model for MNIST (28*28 = 784 input features)
+model = FCBcosNet(
+    input_dim=784,
+    num_classes=10,
+    hidden_dims=[512, 256],
+    b=2
+)
+
+# Forward pass
+images = torch.randn(16, 1, 28, 28)  # Batch of 16 MNIST images
+logits = model(images)  # Shape: (16, 10)
+```
+
+### MaxOut Configuration
+
+The `max_out` parameter enables MaxOut-style behavior:
+
+```python
+from bcos.modules import BcosLinear
+
+# Standard linear layer
+linear_standard = BcosLinear(128, 64, b=2, max_out=1)
+
+# With MaxOut: internally creates 64*4=256 outputs, then takes max over groups of 4
+linear_maxout = BcosLinear(128, 64, b=2, max_out=4)
+
+# Both produce the same output shape, but MaxOut can learn more complex functions
+import torch
+x = torch.randn(8, 128)
+out_standard = linear_standard(x)  # Shape: (8, 64)
+out_maxout = linear_maxout(x)      # Shape: (8, 64)
+```
+
+## NormedLinear
+
+A standard linear transform with unit norm weights (internal component used by `BcosLinear`):
+
+```python
+from bcos.modules.bcoslinear import NormedLinear
+
+# Standard Linear but weights are normalized to unit norm
+linear = NormedLinear(in_features=512, out_features=1000, bias=False)
+```
+
+## Related
+
+- [BcosConv2d](/api/modules/bcos-conv2d) - 2D convolution with B-cos transform
+- [LogitLayer](/api/modules/logit-layer) - Output logit transformation layer
+- [Normalization Layers](/api/modules/norms) - Compatible normalization layers

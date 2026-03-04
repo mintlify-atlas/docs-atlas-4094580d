@@ -1,0 +1,608 @@
+---
+title: Training Custom Models
+description: Train B-cos models from scratch on your own datasets
+---
+
+This guide covers how to train B-cos models from scratch using the provided training framework. Whether you want to reproduce published results or train on custom datasets, this guide has you covered.
+
+## Overview
+
+The B-cos training framework uses PyTorch Lightning and provides:
+
+- **Config-based system**: Reproducible experiments with versioned configurations
+- **Multiple datasets**: Built-in support for CIFAR-10 and ImageNet
+- **Flexible architectures**: ResNets, DenseNets, ConvNeXt, Vision Transformers
+- **Distributed training**: Multi-GPU and multi-node support
+- **Experiment tracking**: Integration with Weights & Biases
+
+<Note>
+For fine-tuning pretrained models, see the [Fine-tuning Guide](/guides/fine-tuning). This guide focuses on training from scratch.
+</Note>
+
+## Setup
+
+### Environment Setup
+
+First, set up the training environment:
+
+<CodeGroup>
+```bash Conda (Recommended)
+conda env create -f environment.yml
+conda activate bcos
+```
+
+```bash pip
+pip install -r requirements-train.txt
+```
+</CodeGroup>
+
+### Data Paths
+
+Configure data paths either in `bcos/settings.py` or via environment variables:
+
+```bash
+# For CIFAR-10 (will be auto-downloaded)
+export DATA_ROOT=/path/to/data
+
+# For ImageNet
+export IMAGENET_PATH=/path/to/imagenet
+```
+
+ImageNet should have this structure:
+```
+imagenet/
+├── train/
+│   ├── n01440764/
+│   ├── n01443537/
+│   └── ...
+└── val/
+    ├── n01440764/
+    ├── n01443537/
+    └── ...
+```
+
+## Training Framework Structure
+
+The training code is organized as follows:
+
+```
+bcos/
+├── models/           # Model definitions
+├── modules/          # B-cos module implementations
+├── data/             # Data loading and transforms
+├── training/         # PyTorch Lightning trainer
+├── experiments/      # Training configurations
+│   ├── ImageNet/
+│   │   ├── bcos_final/
+│   │   │   ├── experiment_parameters.py  # Configs
+│   │   │   └── model.py                  # Model factory
+│   │   └── bcos_final_long/
+│   └── CIFAR10/
+│       └── norm_ablations_final/
+└── optim/            # Optimizers and schedulers
+```
+
+## Quick Start: Train on CIFAR-10
+
+Train a ResNet-20 on CIFAR-10:
+
+```bash
+python train.py \
+    --dataset CIFAR10 \
+    --base_network norm_ablations_final \
+    --experiment_name resnet_20_bnu-linear-nomaxout
+```
+
+This will:
+1. Load the configuration from `bcos/experiments/CIFAR10/norm_ablations_final/`
+2. Create the experiment directory at `experiments/CIFAR10/norm_ablations_final/resnet_20_bnu-linear-nomaxout/`
+3. Train the model and save checkpoints
+4. Log metrics to TensorBoard
+
+<Note>
+The experiment artifacts (checkpoints, logs) are saved in `experiments/` (root directory), separate from the config definitions in `bcos/experiments/`.
+</Note>
+
+## Training on ImageNet
+
+ImageNet training requires more resources and uses distributed training:
+
+### Local Multi-GPU Training
+
+```bash
+python train.py \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_50 \
+    --distributed
+```
+
+### SLURM Cluster Training
+
+For SLURM clusters, use `run_with_submitit.py`:
+
+```bash
+python run_with_submitit.py \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_50 \
+    --gpus 4 \
+    --nodes 1 \
+    --partition gpu \
+    --timeout 48  # hours
+```
+
+<Warning>
+Batch size in configs is **per GPU**, not total. For 4 GPUs with batch size 64, the effective batch size is 256.
+</Warning>
+
+## Configuration System
+
+Configurations are stored in `bcos/experiments/<dataset>/<base_network>/experiment_parameters.py`:
+
+```python
+# Example: bcos/experiments/ImageNet/bcos_final/experiment_parameters.py
+
+CONFIGS = {
+    "resnet_50": {
+        "model": {
+            "name": "resnet_50",
+            "num_classes": 1000,
+            "args": {},
+            "bcos_args": {"b": 2},
+        },
+        "data": {
+            "batch_size": 64,  # Per GPU!
+            "num_workers": 10,
+        },
+        "optimizer": {
+            "name": "Adam",
+            "lr": 0.001,
+            "weight_decay": 0.0001,
+        },
+        "trainer": {
+            "max_epochs": 100,
+            "val_check_interval": 1.0,
+        },
+    },
+}
+```
+
+### Key Configuration Sections
+
+<AccordionGroup>
+  <Accordion title="model">
+    Defines the model architecture:
+    ```python
+    "model": {
+        "name": "resnet_50",           # Model architecture
+        "num_classes": 1000,            # Number of output classes
+        "args": {},                     # Model-specific arguments
+        "bcos_args": {"b": 2},          # B-cos parameters
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="data">
+    Configures data loading:
+    ```python
+    "data": {
+        "batch_size": 64,               # Per GPU batch size
+        "num_workers": 10,              # DataLoader workers
+        "train_transform": ...,         # Training augmentation
+        "test_transform": ...,          # Validation transform
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="optimizer">
+    Sets up optimization:
+    ```python
+    "optimizer": {
+        "name": "Adam",                 # Optimizer class
+        "lr": 0.001,                    # Learning rate
+        "weight_decay": 0.0001,         # L2 regularization
+        "momentum": 0.9,                # For SGD
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="trainer">
+    PyTorch Lightning trainer settings:
+    ```python
+    "trainer": {
+        "max_epochs": 100,              # Total epochs
+        "val_check_interval": 1.0,      # Validation frequency
+        "gradient_clip_val": 0.0,       # Gradient clipping
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Training Your Own Models
+
+### Step 1: Define Your Model
+
+Add your model to `bcos/models/`:
+
+```python
+# bcos/models/my_model.py
+import torch.nn as nn
+from bcos.modules import BcosConv2d, BcosLinear
+from bcos.common import BcosUtilMixin
+
+class MyBcosModel(BcosUtilMixin, nn.Module):
+    def __init__(self, num_classes=1000, b=2):
+        super().__init__()
+        
+        self.features = nn.Sequential(
+            BcosConv2d(6, 64, 3, padding=1, b=b),  # Note: 6 input channels!
+            BcosConv2d(64, 128, 3, padding=1, b=b),
+            # ... more layers
+        )
+        
+        self.classifier = BcosLinear(128, num_classes, b=b)
+        self.logit_layer = nn.Identity()
+    
+    def forward(self, x):
+        x = self.features(x)
+        x = x.mean(dim=[2, 3])  # Global average pooling
+        x = self.classifier(x)
+        x = self.logit_layer(x)
+        return x
+    
+    def get_feature_extractor(self):
+        return self.features
+    
+    def get_classifier(self):
+        return self.classifier
+```
+
+<Note>
+B-cos models:
+- Inherit from `BcosUtilMixin` for `.explain()` support
+- Use 6 input channels (RGB + complement)
+- Use B-cos layers (`BcosConv2d`, `BcosLinear`)
+- Include `get_feature_extractor()` and `get_classifier()` methods
+</Note>
+
+### Step 2: Create Configuration Directory
+
+Create a new config directory:
+
+```bash
+mkdir -p bcos/experiments/ImageNet/my_experiments
+```
+
+### Step 3: Add Model Factory
+
+Create `bcos/experiments/ImageNet/my_experiments/model.py`:
+
+```python
+from bcos.models.my_model import MyBcosModel
+
+def get_model(config):
+    """
+    Factory function to create model from config.
+    
+    Parameters
+    ----------
+    config : dict
+        The experiment configuration dictionary
+    
+    Returns
+    -------
+    nn.Module
+        The instantiated model
+    """
+    model_config = config["model"]
+    
+    model = MyBcosModel(
+        num_classes=model_config["num_classes"],
+        **model_config.get("args", {}),
+        **model_config.get("bcos_args", {}),
+    )
+    
+    return model
+```
+
+### Step 4: Create Experiment Config
+
+Create `bcos/experiments/ImageNet/my_experiments/experiment_parameters.py`:
+
+```python
+from bcos.data.presets import PresetTransform, TransformMode
+
+CONFIGS = {
+    "my_model_v1": {
+        "model": {
+            "name": "my_model",
+            "num_classes": 1000,
+            "args": {},  # Model-specific args
+            "bcos_args": {"b": 2},  # B-cos parameters
+        },
+        "data": {
+            "batch_size": 64,
+            "num_workers": 10,
+            "train_transform": PresetTransform(
+                TransformMode.TRAIN_SIMPLE,
+                img_size=224,
+            ),
+            "test_transform": PresetTransform(
+                TransformMode.TEST,
+                img_size=224,
+            ),
+        },
+        "optimizer": {
+            "name": "Adam",
+            "lr": 0.001,
+            "weight_decay": 0.0001,
+        },
+        "scheduler": {
+            "name": "CosineAnnealingLR",
+            "T_max": 100,
+        },
+        "trainer": {
+            "max_epochs": 100,
+            "val_check_interval": 1.0,
+        },
+    },
+}
+```
+
+### Step 5: Train Your Model
+
+```bash
+python train.py \
+    --dataset ImageNet \
+    --base_network my_experiments \
+    --experiment_name my_model_v1
+```
+
+## Training CLI Options
+
+Key command-line options for `train.py`:
+
+<ParamField path="--dataset" type="string" required>
+  Dataset name: `CIFAR10` or `ImageNet`
+</ParamField>
+
+<ParamField path="--base_network" type="string" required>
+  Configuration collection name (directory in `bcos/experiments/<dataset>/`)
+</ParamField>
+
+<ParamField path="--experiment_name" type="string" required>
+  Experiment name (key in `CONFIGS` dictionary)
+</ParamField>
+
+<ParamField path="--wandb_logger" type="boolean" default="false">
+  Enable Weights & Biases logging
+</ParamField>
+
+<ParamField path="--wandb_project" type="string">
+  W&B project name (required if `--wandb_logger` is set)
+</ParamField>
+
+<ParamField path="--distributed" type="boolean" default="false">
+  Force distributed training (auto-enabled for multi-GPU)
+</ParamField>
+
+<ParamField path="--seed" type="integer" default="42">
+  Random seed for reproducibility
+</ParamField>
+
+## Using Trained Models
+
+After training, load your model:
+
+### Load with Experiment Class
+
+```python
+from bcos.experiments.utils import Experiment
+
+# Load experiment
+exp = Experiment(
+    dataset="ImageNet",
+    base_network="my_experiments",
+    experiment_name="my_model_v1"
+)
+
+# Load best checkpoint
+model = exp.load_trained_model(reload="best")
+model.eval()
+
+# Or load last checkpoint
+model = exp.load_trained_model(reload="last")
+```
+
+### Evaluate Accuracy
+
+Use the evaluation script:
+
+```bash
+python evaluate.py \
+    --dataset ImageNet \
+    --base_network my_experiments \
+    --experiment_name my_model_v1 \
+    --reload best
+```
+
+## Adding a Custom Dataset
+
+### Step 1: Create DataModule
+
+Add a datamodule to `bcos/data/datamodules.py`:
+
+```python
+from pytorch_lightning import LightningDataModule
+from torch.utils.data import DataLoader
+from torchvision.datasets import ImageFolder
+
+class MyDatasetDataModule(LightningDataModule):
+    """
+    DataModule for MyDataset.
+    Name MUST end with 'DataModule'.
+    """
+    
+    NUM_CLASSES = 100  # Required class attribute
+    
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.data_config = config["data"]
+    
+    def setup(self, stage=None):
+        self.train_dataset = ImageFolder(
+            '/path/to/train',
+            transform=self.data_config["train_transform"]
+        )
+        self.val_dataset = ImageFolder(
+            '/path/to/val',
+            transform=self.data_config["test_transform"]
+        )
+    
+    def train_dataloader(self):
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.data_config["batch_size"],
+            shuffle=True,
+            num_workers=self.data_config["num_workers"],
+        )
+    
+    def val_dataloader(self):
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.data_config["batch_size"],
+            shuffle=False,
+            num_workers=self.data_config["num_workers"],
+        )
+```
+
+### Step 2: Create Configurations
+
+Create `bcos/experiments/MyDataset/` directory with configs following the same pattern as CIFAR-10 or ImageNet.
+
+### Step 3: Train
+
+```bash
+python train.py \
+    --dataset MyDataset \
+    --base_network my_config \
+    --experiment_name my_experiment
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Start with existing configs">
+    Copy and modify existing experiment configs rather than starting from scratch
+  </Step>
+  <Step title="Use version control">
+    Track your configs in git for reproducibility
+  </Step>
+  <Step title="Monitor training">
+    Use Weights & Biases or TensorBoard to track metrics
+  </Step>
+  <Step title="Validate explanations">
+    Regularly check explanation quality during training
+  </Step>
+  <Step title="Save checkpoints">
+    Keep both best and last checkpoints for comparison
+  </Step>
+  <Step title="Use appropriate batch sizes">
+    Remember: batch size in config is per GPU, not total
+  </Step>
+</Steps>
+
+## Advanced Topics
+
+### Learning Rate Scheduling
+
+Add schedulers to your config:
+
+```python
+"scheduler": {
+    "name": "CosineAnnealingLR",
+    "T_max": 100,
+    "eta_min": 1e-6,
+}
+
+# Or step decay
+"scheduler": {
+    "name": "StepLR",
+    "step_size": 30,
+    "gamma": 0.1,
+}
+```
+
+### Mixed Precision Training
+
+Enable AMP in your config:
+
+```python
+"trainer": {
+    "max_epochs": 100,
+    "precision": 16,  # Use mixed precision
+}
+```
+
+### Gradient Clipping
+
+```python
+"trainer": {
+    "gradient_clip_val": 1.0,  # Clip gradients
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Out of memory errors">
+    Solutions:
+    - Reduce batch size in config
+    - Use gradient accumulation
+    - Enable mixed precision (16-bit)
+    - Use a smaller model
+  </Accordion>
+  
+  <Accordion title="Training too slow">
+    Solutions:
+    - Increase num_workers for data loading
+    - Use multiple GPUs with distributed training
+    - Enable mixed precision
+    - Use faster data augmentation
+  </Accordion>
+  
+  <Accordion title="Model not converging">
+    Solutions:
+    - Check learning rate (try 1e-4 to 1e-3)
+    - Verify data preprocessing
+    - Check for NaN losses
+    - Reduce model complexity
+    - Add gradient clipping
+  </Accordion>
+  
+  <Accordion title="Config not found">
+    Solutions:
+    - Verify directory structure matches `<dataset>/<base_network>/`
+    - Check experiment name exists in CONFIGS dictionary
+    - Ensure `experiment_parameters.py` and `model.py` exist
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Fine-tuning" icon="wrench" href="/guides/fine-tuning">
+    Adapt pretrained models to your tasks
+  </Card>
+  <Card title="Explanations" icon="eye" href="/guides/explanation-visualization">
+    Visualize model predictions
+  </Card>
+  <Card title="Model Zoo" icon="grid" href="/model-zoo/overview">
+    Explore pretrained models
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference/bcos-training">
+    Training API documentation
+  </Card>
+</CardGroup>

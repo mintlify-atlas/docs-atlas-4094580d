@@ -1,0 +1,444 @@
+---
+title: Configuration System
+description: Understand the B-cos Networks configuration system and how to create custom experiment configurations
+---
+
+The B-cos Networks configuration system provides a flexible, hierarchical approach to defining training experiments. Configs are organized by dataset and experiment type, making it easy to manage multiple training runs.
+
+## Config Organization
+
+Configs are stored in a hierarchical directory structure:
+
+```
+bcos/experiments/
+├── <dataset>/              # e.g., CIFAR10, ImageNet
+│   └── <config_collection>/    # e.g., bcos_final, norm_ablations_final
+│       ├── experiment_parameters.py
+│       └── model.py
+└── utils/                  # Utility functions
+```
+
+- **`<dataset>`**: Either `CIFAR10` or `ImageNet` (extensible to custom datasets)
+- **`<config_collection>`**: A collection of related experiments (historically called "base_network")
+
+<Note>
+  The term "base_network" is used in CLI arguments for historical reasons, but think of it as a "config collection" or experiment group.
+</Note>
+
+## Config Files
+
+Each config collection contains two essential files:
+
+### 1. experiment_parameters.py
+
+This file defines a `CONFIGS` dictionary mapping experiment names to their configuration dictionaries:
+
+```python
+from bcos/experiments/ImageNet/bcos_final/experiment_parameters.py
+
+# Configuration for a single experiment
+CONFIGS = {
+    "resnet_18": {
+        "data": {...},
+        "model": {...},
+        "optimizer": {...},
+        "lr_scheduler": {...},
+        "trainer": {...},
+        "criterion": ...,
+        "test_criterion": ...,
+    },
+    "resnet_50": {...},
+    # More experiments...
+}
+```
+
+### 2. model.py
+
+This file contains a `get_model()` function that processes the model config and returns the instantiated model:
+
+```python
+def get_model(config):
+    """Process config and return model instance."""
+    model_config = config["model"]
+    # Process config, instantiate model
+    return model
+```
+
+## Config Structure
+
+A typical config dictionary contains the following sections:
+
+### Data Configuration
+
+```python
+"data": {
+    "train_transform": ImageNetClassificationPresetTrain(
+        crop_size=224,
+        is_bcos=True,
+    ),
+    "test_transform": ImageNetClassificationPresetEval(
+        crop_size=224,
+        is_bcos=True,
+    ),
+    "batch_size": 64,  # Per GPU!
+    "num_workers": 16,
+    "num_classes": 1000,
+    # Optional augmentation
+    "mixup_alpha": 0.2,
+    "cutmix_alpha": 1.0,
+    "ra_repetitions": 3,  # Repeated augmentation
+}
+```
+
+<Warning>
+  **Important**: `batch_size` is the batch size **per GPU**, not the total effective batch size.
+  
+  For example, if you train on 4 GPUs with `batch_size=64`, the effective batch size is 256.
+</Warning>
+
+### Model Configuration
+
+```python
+"model": {
+    "is_bcos": True,
+    "name": "resnet18",  # Model architecture name
+    "args": {
+        "num_classes": 1000,
+        "norm_layer": NoBias(BatchNormUncentered2d),
+        "logit_bias": -math.log(999),  # NUM_CLASSES - 1
+    },
+    "bcos_args": {
+        "b": 2,          # B-cos temperature parameter
+        "max_out": 1,    # MaxOut factor (1 = disabled)
+    },
+}
+```
+
+### Optimizer Configuration
+
+```python
+from bcos.optim import OptimizerFactory
+
+"optimizer": OptimizerFactory(
+    name="Adam",
+    lr=1e-3,
+    weight_decay=1e-4,
+)
+```
+
+### Learning Rate Scheduler
+
+```python
+from bcos.optim import LRSchedulerFactory
+
+"lr_scheduler": LRSchedulerFactory(
+    name="cosineannealinglr",
+    epochs=90,
+    warmup_method="linear",
+    warmup_epochs=5,
+    warmup_decay=0.01,
+)
+```
+
+### Loss Functions
+
+```python
+from bcos.modules.losses import (
+    BinaryCrossEntropyLoss,
+    UniformOffLabelsBCEWithLogitsLoss,
+)
+
+"criterion": UniformOffLabelsBCEWithLogitsLoss(),  # Training loss
+"test_criterion": BinaryCrossEntropyLoss(),        # Evaluation loss
+```
+
+### Trainer Configuration
+
+```python
+"trainer": {
+    "max_epochs": 90,
+    "gradient_clip_val": 1.0,  # Optional gradient clipping
+}
+```
+
+### Optional: EMA and AGC
+
+```python
+# Exponential Moving Average
+"ema": {
+    "decay": 0.9999,
+    "steps": 32,
+}
+
+# Adaptive Gradient Clipping
+"use_agc": True,
+```
+
+## Real-World Examples
+
+### ImageNet ResNet-18 Example
+
+From `bcos/experiments/ImageNet/bcos_final/experiment_parameters.py`:
+
+```python
+import math
+from bcos.data.presets import (
+    ImageNetClassificationPresetEval,
+    ImageNetClassificationPresetTrain,
+)
+from bcos.modules import norms
+from bcos.modules.losses import (
+    BinaryCrossEntropyLoss,
+    UniformOffLabelsBCEWithLogitsLoss,
+)
+from bcos.optim import LRSchedulerFactory, OptimizerFactory
+
+NUM_CLASSES = 1000
+DEFAULT_BATCH_SIZE = 64  # per GPU! * 4 = 256 effective
+DEFAULT_NUM_EPOCHS = 90
+DEFAULT_LR = 1e-3
+
+DEFAULTS = dict(
+    data=dict(
+        train_transform=ImageNetClassificationPresetTrain(
+            crop_size=224,
+            is_bcos=True,
+        ),
+        test_transform=ImageNetClassificationPresetEval(
+            crop_size=224,
+            is_bcos=True,
+        ),
+        batch_size=DEFAULT_BATCH_SIZE,
+        num_workers=16,
+        num_classes=NUM_CLASSES,
+    ),
+    model=dict(
+        is_bcos=True,
+        args=dict(
+            num_classes=NUM_CLASSES,
+            norm_layer=norms.NoBias(norms.BatchNormUncentered2d),
+            logit_bias=-math.log(NUM_CLASSES - 1),
+        ),
+        bcos_args=dict(
+            b=2,
+            max_out=1,
+        ),
+    ),
+    criterion=UniformOffLabelsBCEWithLogitsLoss(),
+    test_criterion=BinaryCrossEntropyLoss(),
+    optimizer=OptimizerFactory(name="Adam", lr=DEFAULT_LR),
+    lr_scheduler=LRSchedulerFactory(
+        name="cosineannealinglr",
+        epochs=DEFAULT_NUM_EPOCHS,
+        warmup_method="linear",
+        warmup_epochs=5,
+        warmup_decay=0.01,
+    ),
+    trainer=dict(
+        max_epochs=DEFAULT_NUM_EPOCHS,
+    ),
+    use_agc=True,
+)
+
+CONFIGS = {
+    "resnet_18": update_default(
+        dict(
+            model=dict(
+                name="resnet18",
+            ),
+        )
+    ),
+    # More configs...
+}
+```
+
+### CIFAR-10 ResNet-20 Example
+
+From `bcos/experiments/CIFAR10/norm_ablations_final/experiment_parameters.py`:
+
+```python
+import math
+from bcos.data.presets import (
+    CIFAR10ClassificationPresetTest,
+    CIFAR10ClassificationPresetTrain,
+)
+from bcos.modules import norms
+from bcos.modules.losses import BinaryCrossEntropyLoss
+from bcos.optim import LRSchedulerFactory, OptimizerFactory
+
+NUM_CLASSES = 10
+DEFAULT_NUM_EPOCHS = 100
+DEFAULT_BATCH_SIZE = 64
+
+DEFAULTS = dict(
+    data=dict(
+        train_transform=CIFAR10ClassificationPresetTrain(is_bcos=True),
+        test_transform=CIFAR10ClassificationPresetTest(is_bcos=True),
+        batch_size=DEFAULT_BATCH_SIZE,
+        num_workers=4,
+        num_classes=NUM_CLASSES,
+    ),
+    model=dict(
+        is_bcos=True,
+        args=dict(
+            num_classes=NUM_CLASSES,
+            norm_layer=norms.NoBias(norms.BatchNormUncentered2d),
+            logit_bias=-math.log(NUM_CLASSES - 1),
+        ),
+        bcos_args=dict(
+            b=2,
+            max_out=2,  # Note: CIFAR-10 uses maxout=2
+        ),
+    ),
+    criterion=BinaryCrossEntropyLoss(),
+    test_criterion=BinaryCrossEntropyLoss(),
+    optimizer=OptimizerFactory(name="Adam", lr=1e-3),
+    lr_scheduler=LRSchedulerFactory(
+        name="cosineannealinglr",
+        epochs=DEFAULT_NUM_EPOCHS
+    ),
+    trainer=dict(
+        max_epochs=DEFAULT_NUM_EPOCHS,
+    ),
+)
+
+CONFIGS = {
+    "resnet_20_bnu-linear-nomaxout": update_default(
+        dict(
+            model=dict(
+                name="resnet20",
+                args=dict(
+                    norm_layer=norms.NoBias(norms.uncentered_norms.BatchNormUncentered2d),
+                ),
+                bcos_args=dict(
+                    max_out=1,  # No MaxOut
+                ),
+            ),
+        )
+    ),
+}
+```
+
+## Creating Custom Configs
+
+### Step 1: Choose a Location
+
+Create a new directory:
+
+```bash
+mkdir -p bcos/experiments/<dataset>/<your_config_collection>
+```
+
+### Step 2: Define experiment_parameters.py
+
+```python
+from bcos.experiments.utils import update_config
+
+__all__ = ["CONFIGS"]
+
+DEFAULTS = dict(
+    # Your default config...
+)
+
+def update_default(new_config):
+    return update_config(DEFAULTS, new_config)
+
+CONFIGS = {
+    "experiment_1": update_default({...}),
+    "experiment_2": update_default({...}),
+}
+```
+
+### Step 3: Implement model.py
+
+```python
+def get_model(config):
+    model_config = config["model"]
+    # Your model instantiation logic
+    return model
+```
+
+### Step 4: Run Training
+
+```bash
+python train.py \
+    --dataset <your_dataset> \
+    --base_network <your_config_collection> \
+    --experiment_name experiment_1
+```
+
+## Config Utilities
+
+The framework provides helpful utilities in `bcos/experiments/utils`:
+
+### update_config
+
+Deep merge configs:
+
+```python
+from bcos.experiments.utils import update_config
+
+base_config = {"model": {"name": "resnet18", "args": {...}}}
+new_config = {"model": {"args": {"num_classes": 100}}}
+
+merged = update_config(base_config, new_config)
+# Result: base config with num_classes updated to 100
+```
+
+### create_configs_with_different_seeds
+
+Generate multiple configs with different random seeds:
+
+```python
+from bcos.experiments.utils import create_configs_with_different_seeds
+
+base_configs = {"resnet_18": {...}}
+seeded_configs = create_configs_with_different_seeds(
+    base_configs,
+    seeds=[420, 1337]
+)
+# Result: {"resnet_18": {...}, "resnet_18_seed_420": {...}, "resnet_18_seed_1337": {...}}
+```
+
+## Loading Trained Models
+
+The `Experiment` class provides easy access to trained models:
+
+```python
+from bcos.experiments.utils import Experiment
+
+exp = Experiment(
+    "CIFAR10",
+    "norm_ablations_final",
+    "resnet_20_bnu-linear-nomaxout",
+)
+
+# Load the trained model
+model = exp.load_trained_model(reload="last")  # or reload="best"
+
+# Get the datamodule
+datamodule = exp.get_datamodule()
+
+# Access the config
+config = exp.config
+```
+
+## CLI Validation
+
+The training scripts automatically validate your config choices:
+
+```bash
+python train.py --dataset CIFAR10 --base_network norm_ablations_final --experiment_name wrong_name
+# Error: Unknown config 'wrong_name'! Did you mean 'resnet_20'?
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Datasets" icon="database" href="/training/datasets">
+    Learn how to set up and configure datasets
+  </Card>
+  <Card title="Distributed Training" icon="server" href="/training/distributed-training">
+    Scale your training to multiple GPUs
+  </Card>
+</CardGroup>

@@ -1,0 +1,575 @@
+---
+title: Vision Transformer (ViT) Models
+description: B-cos and standard Vision Transformer models with various sizes and architectures
+---
+
+# Vision Transformer (ViT) Models
+
+B-cos Vision Transformers adapt the ViT architecture for inherently interpretable predictions. Both B-cos and standard (non-B-cos) variants are available for comparison.
+
+## Requirements
+
+**Important:** ViT models require the `einops` package:
+
+```bash
+pip install einops
+```
+
+## Available Models
+
+### B-cos Simple ViT (16x16 patches, 224x224 images)
+
+| Model | Acc@1 | Acc@5 | Params | Entrypoint |
+|-------|-------|-------|--------|------------|
+| Simple ViT-Ti | 59.960% | 81.838% | 5.80M | `simple_vit_ti_patch16_224` |
+| Simple ViT-S | 69.246% | 88.096% | 22.28M | `simple_vit_s_patch16_224` |
+| Simple ViT-B | 74.408% | 91.156% | 86.90M | `simple_vit_b_patch16_224` |
+| Simple ViT-L | 75.060% | 91.378% | 178.79M | `simple_vit_l_patch16_224` |
+
+### B-cos ViT with Convolutional Stem (1x1 patches, 14x14 after conv)
+
+| Model | Acc@1 | Acc@5 | Params | Entrypoint |
+|-------|-------|-------|--------|------------|
+| ViTC-Ti | 67.260% | 86.774% | 5.32M | `vitc_ti_patch1_14` |
+| ViTC-S | 74.504% | 91.288% | 20.88M | `vitc_s_patch1_14` |
+| ViTC-B | 77.152% | 92.926% | 81.37M | `vitc_b_patch1_14` |
+| ViTC-L | 77.782% | 92.966% | 167.44M | `vitc_l_patch1_14` |
+
+### Standard (Non-B-cos) Simple ViT
+
+| Model | Acc@1 | Acc@5 | Params | Entrypoint |
+|-------|-------|-------|--------|------------|
+| Simple ViT-Ti | 70.230% | 89.380% | 5.67M | `standard_simple_vit_ti_patch16_224` |
+| Simple ViT-S | 74.470% | 91.226% | 21.96M | `standard_simple_vit_s_patch16_224` |
+| Simple ViT-B | 75.300% | 91.026% | 86.38M | `standard_simple_vit_b_patch16_224` |
+| Simple ViT-L | 75.710% | 90.050% | 178.10M | `standard_simple_vit_l_patch16_224` |
+
+### Standard (Non-B-cos) ViT with Convolutional Stem
+
+| Model | Acc@1 | Acc@5 | Params | Entrypoint |
+|-------|-------|-------|--------|------------|
+| ViTC-Ti | 72.590% | 90.788% | 5.33M | `standard_vitc_ti_patch1_14` |
+| ViTC-S | 75.756% | 91.994% | 20.91M | `standard_vitc_s_patch1_14` |
+| ViTC-B | 76.790% | 92.024% | 81.39M | `standard_vitc_b_patch1_14` |
+| ViTC-L | 77.866% | 92.298% | 167.54M | `standard_vitc_l_patch1_14` |
+
+## Usage
+
+### Basic Usage
+
+```python
+import torch
+
+# Load B-cos ViT model
+model = torch.hub.load('B-cos/B-cos-v2', 'simple_vit_b_patch16_224', pretrained=True)
+
+# Load B-cos ViT with conv stem
+model = torch.hub.load('B-cos/B-cos-v2', 'vitc_b_patch1_14', pretrained=True)
+
+# Load standard (non-B-cos) ViT for comparison
+model = torch.hub.load('B-cos/B-cos-v2', 'standard_simple_vit_b_patch16_224', pretrained=True)
+```
+
+### Inference Example
+
+```python
+from PIL import Image
+import matplotlib.pyplot as plt
+
+# Load and preprocess image
+img = Image.open('image.jpg')
+img_tensor = model.transform(img).unsqueeze(0).requires_grad_()
+
+# Get prediction with explanation (B-cos models only)
+model.eval()
+expl_out = model.explain(img_tensor)
+print(f"Predicted class: {expl_out['prediction']}")
+plt.imshow(expl_out['explanation'])
+plt.show()
+```
+
+## API Reference - B-cos Simple ViT
+
+### simple_vit_ti_patch16_224
+
+```python
+simple_vit_ti_patch16_224(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos Simple ViT-Ti with 16x16 patch size and 224x224 image size.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos Simple ViT-Ti model
+
+**Metrics:**
+- Acc@1: 59.960%
+- Acc@5: 81.838%
+- Parameters: 5.80M
+
+---
+
+### simple_vit_s_patch16_224
+
+```python
+simple_vit_s_patch16_224(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos Simple ViT-S with 16x16 patch size and 224x224 image size.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos Simple ViT-S model
+
+**Metrics:**
+- Acc@1: 69.246%
+- Acc@5: 88.096%
+- Parameters: 22.28M
+
+---
+
+### simple_vit_b_patch16_224
+
+```python
+simple_vit_b_patch16_224(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos Simple ViT-B with 16x16 patch size and 224x224 image size.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos Simple ViT-B model
+
+**Metrics:**
+- Acc@1: 74.408%
+- Acc@5: 91.156%
+- Parameters: 86.90M
+
+---
+
+### simple_vit_l_patch16_224
+
+```python
+simple_vit_l_patch16_224(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos Simple ViT-L with 16x16 patch size and 224x224 image size.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos Simple ViT-L model
+
+**Metrics:**
+- Acc@1: 75.060%
+- Acc@5: 91.378%
+- Parameters: 178.79M
+
+## API Reference - B-cos ViT with Convolutional Stem
+
+### vitc_ti_patch1_14
+
+```python
+vitc_ti_patch1_14(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos Simple ViT-Ti with a convolutional stem. The ViT, after the convolution stem, accepts a 1x1 patch size and 14x14 image size.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ViTC-Ti model
+
+**Metrics:**
+- Acc@1: 67.260%
+- Acc@5: 86.774%
+- Parameters: 5.32M
+
+---
+
+### vitc_s_patch1_14
+
+```python
+vitc_s_patch1_14(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos Simple ViT-S with a convolutional stem. The ViT, after the convolution stem, accepts a 1x1 patch size and 14x14 image size.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ViTC-S model
+
+**Metrics:**
+- Acc@1: 74.504%
+- Acc@5: 91.288%
+- Parameters: 20.88M
+
+---
+
+### vitc_b_patch1_14
+
+```python
+vitc_b_patch1_14(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos Simple ViT-B with a convolutional stem. The ViT, after the convolution stem, accepts a 1x1 patch size and 14x14 image size.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ViTC-B model
+
+**Metrics:**
+- Acc@1: 77.152%
+- Acc@5: 92.926%
+- Parameters: 81.37M
+
+---
+
+### vitc_l_patch1_14
+
+```python
+vitc_l_patch1_14(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos Simple ViT-L with a convolutional stem. The ViT, after the convolution stem, accepts a 1x1 patch size and 14x14 image size.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ViTC-L model
+
+**Metrics:**
+- Acc@1: 77.782%
+- Acc@5: 92.966%
+- Parameters: 167.44M
+
+## API Reference - Standard (Non-B-cos) ViT Models
+
+### standard_simple_vit_ti_patch16_224
+
+```python
+standard_simple_vit_ti_patch16_224(pretrained=False, progress=True, **kwargs)
+```
+
+Standard Simple ViT-Ti with 16x16 patch size and 224x224 image size. **This is NOT a B-cos model.**
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The standard Simple ViT-Ti model
+
+**Metrics:**
+- Acc@1: 70.230%
+- Acc@5: 89.380%
+- Parameters: 5.67M
+
+---
+
+### standard_simple_vit_s_patch16_224
+
+```python
+standard_simple_vit_s_patch16_224(pretrained=False, progress=True, **kwargs)
+```
+
+Standard Simple ViT-S with 16x16 patch size and 224x224 image size. **This is NOT a B-cos model.**
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The standard Simple ViT-S model
+
+**Metrics:**
+- Acc@1: 74.470%
+- Acc@5: 91.226%
+- Parameters: 21.96M
+
+---
+
+### standard_simple_vit_b_patch16_224
+
+```python
+standard_simple_vit_b_patch16_224(pretrained=False, progress=True, **kwargs)
+```
+
+Standard Simple ViT-B with 16x16 patch size and 224x224 image size. **This is NOT a B-cos model.**
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The standard Simple ViT-B model
+
+**Metrics:**
+- Acc@1: 75.300%
+- Acc@5: 91.026%
+- Parameters: 86.38M
+
+---
+
+### standard_simple_vit_l_patch16_224
+
+```python
+standard_simple_vit_l_patch16_224(pretrained=False, progress=True, **kwargs)
+```
+
+Standard Simple ViT-L with 16x16 patch size and 224x224 image size. **This is NOT a B-cos model.**
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The standard Simple ViT-L model
+
+**Metrics:**
+- Acc@1: 75.710%
+- Acc@5: 90.050%
+- Parameters: 178.10M
+
+---
+
+### standard_vitc_ti_patch1_14
+
+```python
+standard_vitc_ti_patch1_14(pretrained=False, progress=True, **kwargs)
+```
+
+Standard Simple ViT-Ti with a convolutional stem. The ViT, after the convolution stem, accepts a 1x1 patch size and 14x14 image size. **This is NOT a B-cos model.**
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The standard ViTC-Ti model
+
+**Metrics:**
+- Acc@1: 72.590%
+- Acc@5: 90.788%
+- Parameters: 5.33M
+
+---
+
+### standard_vitc_s_patch1_14
+
+```python
+standard_vitc_s_patch1_14(pretrained=False, progress=True, **kwargs)
+```
+
+Standard Simple ViT-S with a convolutional stem. The ViT, after the convolution stem, accepts a 1x1 patch size and 14x14 image size. **This is NOT a B-cos model.**
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The standard ViTC-S model
+
+**Metrics:**
+- Acc@1: 75.756%
+- Acc@5: 91.994%
+- Parameters: 20.91M
+
+---
+
+### standard_vitc_b_patch1_14
+
+```python
+standard_vitc_b_patch1_14(pretrained=False, progress=True, **kwargs)
+```
+
+Standard Simple ViT-B with a convolutional stem. The ViT, after the convolution stem, accepts a 1x1 patch size and 14x14 image size. **This is NOT a B-cos model.**
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The standard ViTC-B model
+
+**Metrics:**
+- Acc@1: 76.790%
+- Acc@5: 92.024%
+- Parameters: 81.39M
+
+---
+
+### standard_vitc_l_patch1_14
+
+```python
+standard_vitc_l_patch1_14(pretrained=False, progress=True, **kwargs)
+```
+
+Standard Simple ViT-L with a convolutional stem. The ViT, after the convolution stem, accepts a 1x1 patch size and 14x14 image size. **This is NOT a B-cos model.**
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The standard ViTC-L model
+
+**Metrics:**
+- Acc@1: 77.866%
+- Acc@5: 92.298%
+- Parameters: 167.54M
+
+## Notes
+
+### Model Variants
+
+**Simple ViT:** Standard Vision Transformer with 16x16 patch embeddings on 224x224 images.
+
+**ViTC (ViT with Convolutional Stem):** Uses early convolutions before the transformer, which has been shown to help transformers see better. After the convolutional stem, the ViT processes 1x1 patches on a 14x14 feature map.
+
+### B-cos vs Standard Models
+
+B-cos ViT models are inherently interpretable and can generate explanations via the `.explain()` method. Standard (non-B-cos) models are provided for comparison and achieve slightly higher accuracy but lack built-in interpretability.
+
+### Performance Notes
+
+ViT models with convolutional stems (ViTC) generally achieve better accuracy than their simple counterparts, especially for smaller models. The B-cos ViTC-L achieves 77.78% top-1 accuracy, making it one of the highest-performing B-cos models.
+
+## References
+
+- [B-cos Networks: Alignment is All We Need for Interpretability](https://arxiv.org/abs/2205.10268)
+- [Better plain ViT baselines for ImageNet-1k](https://arxiv.org/abs/2205.01580)
+- [Early Convolutions Help Transformers See Better](https://arxiv.org/abs/2106.14881)

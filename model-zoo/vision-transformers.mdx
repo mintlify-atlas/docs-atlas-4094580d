@@ -1,0 +1,328 @@
+---
+title: Vision Transformer Models
+description: Complete reference for B-cos Vision Transformer models including Simple ViT and ViT-C architectures with and without B-cos alignment.
+---
+
+# Vision Transformer Models
+
+This page documents all Vision Transformer (ViT) models in the B-cos Model Zoo. The collection includes both B-cos variants (inherently interpretable) and standard variants (non-B-cos baselines for comparison).
+
+<Note>
+All ViT models require the `einops` package. Install it with: `pip install einops`
+</Note>
+
+## B-cos Simple ViT Models
+
+Simple ViT models use standard patch-based tokenization with 16×16 patches and 224×224 input resolution. These models follow the "Better plain ViT baselines" architecture.
+
+| Model | Entrypoint | Top-1 Acc | Top-5 Acc | Parameters | Download |
+|-------|-----------|-----------|-----------|------------|---------|
+| Simple ViT-Ti | `simple_vit_ti_patch16_224` | 59.960% | 81.838% | 5.80M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/bcos_simple_vit_ti_patch16_224-4b0824b1c1.pth) |
+| Simple ViT-S | `simple_vit_s_patch16_224` | 69.246% | 88.096% | 22.28M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/bcos_simple_vit_s_patch16_224-75e99d1f73.pth) |
+| Simple ViT-B | `simple_vit_b_patch16_224` | 74.408% | 91.156% | 86.90M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/bcos_simple_vit_b_patch16_224-1fc4750806.pth) |
+| Simple ViT-L | `simple_vit_l_patch16_224` | 75.060% | 91.378% | 178.79M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/bcos_simple_vit_l_patch16_224-9613b2ad0a.pth) |
+
+### Usage Example
+
+```python
+import torch
+
+# Load B-cos Simple ViT-S
+model = torch.hub.load('B-cos/B-cos-v2', 'simple_vit_s_patch16_224', pretrained=True)
+```
+
+### Key Features
+
+- **Pure transformer architecture**: No convolutional components
+- **16×16 patch size**: Standard ViT tokenization
+- **B-cos interpretability**: Built-in explanation generation
+- **Multiple scales**: From Tiny (5.8M) to Large (178.79M) parameters
+
+---
+
+## B-cos ViT-C Models
+
+ViT-C (ViT with Convolutional stem) models use early convolutions before the transformer layers, improving performance by learning better initial representations. After the convolutional stem, these models process 1×1 patches at 14×14 resolution.
+
+| Model | Entrypoint | Top-1 Acc | Top-5 Acc | Parameters | Download |
+|-------|-----------|-----------|-----------|------------|---------|
+| ViT-C Ti | `vitc_ti_patch1_14` | 67.260% | 86.774% | 5.32M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/bcos_vitc_ti_patch1_14-ddd6193a77.pth) |
+| ViT-C S | `vitc_s_patch1_14` | 74.504% | 91.288% | 20.88M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/bcos_vitc_s_patch1_14-cf55c88f0c.pth) |
+| ViT-C B | `vitc_b_patch1_14` | 77.152% | 92.926% | 81.37M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/bcos_vitc_b_patch1_14-a13c46397b.pth) |
+| ViT-C L | `vitc_l_patch1_14` | 77.782% | 92.966% | 167.44M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/bcos_vitc_l_patch1_14-8739e18b8d.pth) |
+
+### Usage Example
+
+```python
+import torch
+
+# Load B-cos ViT-C Base
+model = torch.hub.load('B-cos/B-cos-v2', 'vitc_b_patch1_14', pretrained=True)
+```
+
+### Key Features
+
+- **Convolutional stem**: Processes images with early convolutions
+- **1×1 patch size**: After stem, operates on 14×14 feature maps
+- **Better accuracy**: Consistently outperforms Simple ViT counterparts
+- **Hybrid architecture**: Combines CNN and transformer strengths
+- **Parameter efficient**: Similar sizes to Simple ViT but higher accuracy
+
+### Performance Comparison: ViT-C vs Simple ViT
+
+| Size | Simple ViT Acc | ViT-C Acc | Improvement |
+|------|---------------|-----------|-------------|
+| Tiny | 59.96% | 67.26% | +7.30% |
+| Small | 69.25% | 74.50% | +5.25% |
+| Base | 74.41% | 77.15% | +2.74% |
+| Large | 75.06% | 77.78% | +2.72% |
+
+---
+
+## Standard (Non-B-cos) Simple ViT Models
+
+These are standard Vision Transformer models without B-cos alignment, provided as baselines for comparison. They use conventional training and lack inherent interpretability.
+
+| Model | Entrypoint | Top-1 Acc | Top-5 Acc | Parameters | Download |
+|-------|-----------|-----------|-----------|------------|---------|
+| Standard Simple ViT-Ti | `standard_simple_vit_ti_patch16_224` | 70.230% | 89.380% | 5.67M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/standard_simple_vit_ti_patch16_224-2ae8c65a39.pth) |
+| Standard Simple ViT-S | `standard_simple_vit_s_patch16_224` | 74.470% | 91.226% | 21.96M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/standard_simple_vit_s_patch16_224-f2934fcdcf.pth) |
+| Standard Simple ViT-B | `standard_simple_vit_b_patch16_224` | 75.300% | 91.026% | 86.38M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/standard_simple_vit_b_patch16_224-87074200ed.pth) |
+| Standard Simple ViT-L | `standard_simple_vit_l_patch16_224` | 75.710% | 90.050% | 178.10M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/standard_simple_vit_l_patch16_224-62dc536e03.pth) |
+
+### Usage Example
+
+```python
+import torch
+
+# Load standard (non-B-cos) ViT-S for baseline comparison
+model = torch.hub.load('B-cos/B-cos-v2', 'standard_simple_vit_s_patch16_224', pretrained=True)
+```
+
+---
+
+## Standard (Non-B-cos) ViT-C Models
+
+Standard ViT-C models without B-cos alignment, serving as strong baselines.
+
+| Model | Entrypoint | Top-1 Acc | Top-5 Acc | Parameters | Download |
+|-------|-----------|-----------|-----------|------------|---------|
+| Standard ViT-C Ti | `standard_vitc_ti_patch1_14` | 72.590% | 90.788% | 5.33M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/standard_vitc_ti_patch1_14-a5d6bded37.pth) |
+| Standard ViT-C S | `standard_vitc_s_patch1_14` | 75.756% | 91.994% | 20.91M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/standard_vitc_s_patch1_14-34ecd7288e.pth) |
+| Standard ViT-C B | `standard_vitc_b_patch1_14` | 76.790% | 92.024% | 81.39M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/standard_vitc_b_patch1_14-4d374b0220.pth) |
+| Standard ViT-C L | `standard_vitc_l_patch1_14` | 77.866% | 92.298% | 167.54M | [weights](https://github.com/B-cos/B-cos-v2/releases/download/v0.0.1-weights/standard_vitc_l_patch1_14-560e48f246.pth) |
+
+### Usage Example
+
+```python
+import torch
+
+# Load standard (non-B-cos) ViT-C Base
+model = torch.hub.load('B-cos/B-cos-v2', 'standard_vitc_b_patch1_14', pretrained=True)
+```
+
+---
+
+## B-cos vs Standard Comparison
+
+### Simple ViT: B-cos vs Standard
+
+| Size | B-cos Acc | Standard Acc | Difference |
+|------|-----------|--------------|------------|
+| Tiny | 59.96% | 70.23% | -10.27% |
+| Small | 69.25% | 74.47% | -5.22% |
+| Base | 74.41% | 75.30% | -0.89% |
+| Large | 75.06% | 75.71% | -0.65% |
+
+### ViT-C: B-cos vs Standard
+
+| Size | B-cos Acc | Standard Acc | Difference |
+|------|-----------|--------------|------------|
+| Tiny | 67.26% | 72.59% | -5.33% |
+| Small | 74.50% | 75.76% | -1.26% |
+| Base | 77.15% | 76.79% | +0.36% |
+| Large | 77.78% | 77.87% | -0.09% |
+
+### Key Insights
+
+- **Accuracy gap decreases with model size**: Larger B-cos models approach or match standard model performance
+- **ViT-C closes the gap**: Convolutional stems help B-cos models compete better
+- **Base and Large models**: B-cos ViT-C Base/Large achieve competitive accuracy while maintaining interpretability
+- **Interpretability trade-off**: Smaller models show larger accuracy differences, but gain inherent interpretability
+
+---
+
+## Model Selection Guide
+
+### Best B-cos ViT Accuracy
+
+1. **vitc_l_patch1_14**: 77.782% (167.44M params)
+2. **vitc_b_patch1_14**: 77.152% (81.37M params)
+3. **simple_vit_l_patch16_224**: 75.060% (178.79M params)
+
+### Best Parameter Efficiency (B-cos)
+
+1. **vitc_ti_patch1_14**: 67.260% with 5.32M params (12.64% acc/M)
+2. **simple_vit_ti_patch16_224**: 59.960% with 5.80M params (10.34% acc/M)
+3. **vitc_s_patch1_14**: 74.504% with 20.88M params (3.57% acc/M)
+
+### Best for Research
+
+- **B-cos and Standard pairs**: Compare interpretable vs standard models
+- **vitc_b_patch1_14** + **standard_vitc_b_patch1_14**: Mid-size with strong performance
+- **simple_vit_s_patch16_224** + **standard_simple_vit_s_patch16_224**: Good balance of size and accuracy
+
+### Recommended for Production
+
+- **vitc_b_patch1_14**: Best accuracy-to-parameter ratio with interpretability
+- **vitc_s_patch1_14**: Smaller footprint, good accuracy
+- **simple_vit_s_patch16_224**: When pure transformer architecture is preferred
+
+---
+
+## Common Usage Patterns
+
+### Basic Inference
+
+```python
+import torch
+from PIL import Image
+
+model = torch.hub.load('B-cos/B-cos-v2', 'vitc_b_patch1_14', pretrained=True)
+model.eval()
+
+# Load and transform image
+img = model.transform(Image.open('image.jpg'))
+img = img[None]  # Add batch dimension
+
+# Forward pass
+with torch.no_grad():
+    output = model(img)
+    pred = output.argmax(dim=1)
+print(f"Predicted class: {pred.item()}")
+```
+
+### Generate Explanations
+
+```python
+import torch
+from PIL import Image
+import matplotlib.pyplot as plt
+
+model = torch.hub.load('B-cos/B-cos-v2', 'simple_vit_b_patch16_224', pretrained=True)
+model.eval()
+
+# Prepare image with gradients
+img = model.transform(Image.open('image.jpg'))
+img = img[None].requires_grad_()
+
+# Generate explanation
+expl_out = model.explain(img)
+
+print(f"Prediction: {expl_out['prediction']}")
+plt.imshow(expl_out['explanation'])
+plt.title('B-cos Explanation')
+plt.axis('off')
+plt.show()
+```
+
+### Fine-tuning for Custom Tasks
+
+```python
+import torch
+import torch.nn as nn
+
+# Load pretrained model
+model = torch.hub.load('B-cos/B-cos-v2', 'vitc_s_patch1_14', pretrained=True)
+
+# Get components
+feature_extractor = model.get_feature_extractor()
+classifier = model.get_classifier()
+
+# Replace classifier for your task
+num_classes = 10  # Your dataset classes
+new_classifier = nn.Linear(classifier.in_features, num_classes)
+
+# Create new model
+class CustomViT(nn.Module):
+    def __init__(self, feature_extractor, classifier):
+        super().__init__()
+        self.features = feature_extractor
+        self.classifier = classifier
+    
+    def forward(self, x):
+        x = self.features(x)
+        x = self.classifier(x)
+        return x
+
+finetuned_model = CustomViT(feature_extractor, new_classifier)
+
+# Freeze feature extractor (optional)
+for param in feature_extractor.parameters():
+    param.requires_grad = False
+```
+
+### Comparing B-cos vs Standard
+
+```python
+import torch
+from PIL import Image
+
+# Load both variants
+bcos_model = torch.hub.load('B-cos/B-cos-v2', 'simple_vit_s_patch16_224', pretrained=True)
+std_model = torch.hub.load('B-cos/B-cos-v2', 'standard_simple_vit_s_patch16_224', pretrained=True)
+
+bcos_model.eval()
+std_model.eval()
+
+# Compare predictions
+img = bcos_model.transform(Image.open('image.jpg')).unsqueeze(0)
+
+with torch.no_grad():
+    bcos_out = bcos_model(img)
+    std_out = std_model(img)
+
+print(f"B-cos prediction: {bcos_out.argmax()}")
+print(f"Standard prediction: {std_out.argmax()}")
+
+# Only B-cos models support explanation
+img_with_grad = img.requires_grad_()
+expl = bcos_model.explain(img_with_grad)
+print(f"Explanation available: {expl['explanation'].shape}")
+```
+
+---
+
+## Architecture Details
+
+### Simple ViT Architecture
+
+1. **Patch Embedding**: 16×16 patches from 224×224 images → 196 tokens
+2. **Transformer Encoder**: Multi-head self-attention + MLP blocks
+3. **Classification Head**: Global average pooling + linear classifier
+
+### ViT-C Architecture
+
+1. **Convolutional Stem**: Multiple conv layers reducing spatial size
+2. **Feature Maps**: 14×14 spatial resolution
+3. **Patch Embedding**: 1×1 patches (already processed by stem)
+4. **Transformer Encoder**: Multi-head self-attention + MLP blocks
+5. **Classification Head**: Global average pooling + linear classifier
+
+### Model Sizes
+
+| Size | Embed Dim | Depth | Heads | MLP Ratio |
+|------|-----------|-------|-------|----------|
+| Ti (Tiny) | 192 | 12 | 3 | 4 |
+| S (Small) | 384 | 12 | 6 | 4 |
+| B (Base) | 768 | 12 | 12 | 4 |
+| L (Large) | 1024 | 24 | 16 | 4 |
+
+---
+
+## References
+
+- [An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale](https://arxiv.org/abs/2010.11929)
+- [Better plain ViT baselines for ImageNet-1k](https://arxiv.org/abs/2205.01580)
+- [Early Convolutions Help Transformers See Better](https://arxiv.org/abs/2106.14881)
+- [B-cos Alignment for Inherently Interpretable CNNs and Vision Transformers](https://arxiv.org/abs/2306.10898)

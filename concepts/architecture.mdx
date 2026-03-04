@@ -1,0 +1,513 @@
+---
+title: Architecture
+description: Architectural differences between B-cos Networks and standard CNNs, including normalization layers and design choices
+---
+
+# B-cos Network Architecture
+
+B-cos Networks require specific architectural modifications to maintain their interpretability properties. While they follow familiar structures (ResNet, DenseNet, ViT), key components differ from standard implementations.
+
+## Core Architectural Principles
+
+B-cos Networks are built on three fundamental principles:
+
+1. **No bias terms**: Biases break the linearity property needed for explanations
+2. **Normalized weights**: All weights are unit vectors
+3. **Uncentered normalization**: Standard normalization (like BatchNorm) must be adapted
+
+## Layer Replacements
+
+### Linear Operations
+
+Standard layers are replaced with B-cos equivalents:
+
+```python
+import torch.nn as nn
+from bcos.modules import BcosConv2d, BcosLinear
+
+# Standard CNN
+conv = nn.Conv2d(3, 64, kernel_size=3, bias=True)
+fc = nn.Linear(512, 1000, bias=True)
+
+# B-cos Network
+conv = BcosConv2d(3, 64, kernel_size=3, b=2)  # No bias parameter!
+fc = BcosLinear(512, 1000, b=2)  # No bias parameter!
+```
+
+Key differences:
+- **`b` parameter**: Controls nonlinearity (B=2 recommended)
+- **No bias**: All B-cos modules have `bias=False` internally
+- **Weight normalization**: Automatic via `NormedConv2d` and `NormedLinear`
+
+See implementations:
+- `bcos/modules/bcosconv2d.py:26-249`
+- `bcos/modules/bcoslinear.py:30-140`
+
+### Activation Functions
+
+B-cos modules have **built-in nonlinearity** through dynamic scaling:
+
+```python
+# Standard: Explicit activation
+x = conv(x)
+x = nn.ReLU()(x)  # Separate activation
+
+# B-cos: Implicit activation
+x = BcosConv2d(...)(x)  # Activation built-in via |cos|^(B-1)
+```
+
+No additional activation functions are needed (or wanted) after B-cos layers!
+
+## Normalization Layers
+
+This is the most critical architectural difference. Standard normalization layers **center** the data, which breaks B-cos alignment.
+
+### Why Standard BatchNorm Fails
+
+Standard BatchNorm:
+```python
+BN(x) = γ * (x - μ) / σ + β
+```
+
+The centering term `(x - μ)` is problematic:
+
+1. **Breaks alignment**: Subtracting the mean changes the direction of features
+2. **Loses sign information**: A bright pixel (x=0.8) and dark pixel (x=0.2) might have the same value after centering
+3. **Destroys interpretability**: The linear relationship between input and output is lost
+
+### Uncentered Normalization
+
+B-cos uses **normalization without centering**:
+
+```python
+BNU(x) = γ * x / σ + β
+```
+
+Only the **scale** (σ) is normalized, not the mean.
+
+#### BatchNorm Uncentered (BNU)
+
+```python
+from bcos.modules.norms import BatchNormUncentered2d
+
+# Standard BatchNorm
+bn = nn.BatchNorm2d(64)
+
+# B-cos BatchNorm Uncentered
+bnu = BatchNormUncentered2d(64)
+```
+
+Implementation details from `bcos/modules/norms/uncentered_norms/batchnorm_uncentered.py:21-58`:
+
+```python
+def batch_norm_uncentered_2d(input, running_var, weight, bias, 
+                              training, momentum, eps, detach):
+    if training:
+        # Compute variance (NOT mean!)
+        x = input.detach() if detach else input
+        var = x.var(dim=(0, 2, 3), unbiased=False)
+        
+        # Update running stats
+        if running_var is not None:
+            running_var.copy_((1 - momentum) * running_var + momentum * var.detach())
+    else:
+        var = running_var
+    
+    std = (var + eps).sqrt()[None, ..., None, None]
+    result = input / std  # No mean subtraction!
+    
+    if weight is not None:
+        result = weight[None, ..., None, None] * result
+    if bias is not None:
+        result = result + bias[None, ..., None, None]
+    
+    return result
+```
+
+#### Other Uncentered Norms
+
+B-cos provides uncentered versions of several normalization layers:
+
+```python
+from bcos.modules.norms import (
+    BatchNormUncentered2d,     # Uncentered BatchNorm
+    GroupNormUncentered,       # Uncentered GroupNorm  
+    AllNormUncentered,         # Uncentered variant combining BatchNorm and GroupNorm
+    NormUncentered2d,          # Generic uncentered norm (PosNorm)
+)
+```
+
+All follow the same principle: **normalize scale, preserve mean**.
+
+See `bcos/modules/norms/uncentered_norms/__init__.py` for available normalizations.
+
+### Detachable Normalization
+
+Uncentered norms also inherit from `DetachableModule`:
+
+```python
+class BatchNormUncentered2d(nn.BatchNorm2d, DetachableModule):
+    def forward(self, input):
+        # ...
+        return batch_norm_uncentered_2d(
+            input=input,
+            running_var=self.running_var,
+            # ...
+            detach=self.detach,  # <-- For explanation mode
+        )
+```
+
+In explanation mode (`detach=True`):
+- Statistics are computed from **detached** inputs
+- Maintains linearity of the overall computation graph
+
+See `bcos/modules/norms/uncentered_norms/batchnorm_uncentered.py:61-112`.
+
+## Input Preprocessing
+
+### AddInverse Transform
+
+B-cos models require inputs with **inverse channels**:
+
+```python
+from bcos.data.transforms import AddInverse
+
+# Standard preprocessing
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                       std=[0.229, 0.224, 0.225]),
+])
+
+# B-cos preprocessing
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    AddInverse(),  # [3, H, W] -> [6, H, W]
+])
+```
+
+`AddInverse` implementation (`bcos/data/transforms.py:10-23`):
+
+```python
+class AddInverse(torch.nn.Module):
+    def __init__(self, dim: int = -3):
+        super().__init__()
+        self.dim = dim
+    
+    def forward(self, in_tensor: Tensor) -> Tensor:
+        return torch.cat([in_tensor, 1 - in_tensor], dim=self.dim)
+```
+
+**Why?** B-cos needs to distinguish between "presence" and "absence" of features. The 6 channels represent:
+- Channels 0-2: R, G, B (original)
+- Channels 3-5: 1-R, 1-G, 1-B (inverse)
+
+The network learns separate weights for positive and negative evidence.
+
+### No Standard Normalization
+
+⚠️ **Important**: Do NOT use `transforms.Normalize` with mean and std!
+
+```python
+# WRONG - breaks interpretability!
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    AddInverse(),
+])
+
+# CORRECT
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    AddInverse(),  # Input range [0, 1] preserved
+])
+```
+
+Mean subtraction would break the alignment property!
+
+## Model Structure Examples
+
+### B-cos ResNet Block
+
+```python
+import torch.nn as nn
+from bcos.modules import BcosConv2d
+from bcos.modules.norms import BatchNormUncentered2d
+
+class BcosBasicBlock(nn.Module):
+    def __init__(self, in_planes, planes, stride=1):
+        super().__init__()
+        # First conv + norm
+        self.conv1 = BcosConv2d(in_planes, planes, 3, stride=stride, padding=1, b=2)
+        self.bn1 = BatchNormUncentered2d(planes)
+        
+        # Second conv + norm
+        self.conv2 = BcosConv2d(planes, planes, 3, stride=1, padding=1, b=2)
+        self.bn2 = BatchNormUncentered2d(planes)
+        
+        # Shortcut
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_planes != planes:
+            self.shortcut = nn.Sequential(
+                BcosConv2d(in_planes, planes, 1, stride=stride, b=2),
+                BatchNormUncentered2d(planes)
+            )
+    
+    def forward(self, x):
+        out = self.bn1(self.conv1(x))
+        out = self.bn2(self.conv2(out))
+        out += self.shortcut(x)
+        return out
+```
+
+Key points:
+- No ReLU activations!
+- BNU instead of BN
+- Residual connections work normally
+
+See full implementation in `bcos/models/resnet.py`.
+
+### B-cos Vision Transformer
+
+B-cos also supports Vision Transformers:
+
+```python
+from bcos.modules import BcosLinear
+
+class BcosTransformerBlock(nn.Module):
+    def __init__(self, dim, num_heads):
+        super().__init__()
+        # Attention (using B-cos Linear for projections)
+        self.qkv = BcosLinear(dim, dim * 3, b=2)
+        self.proj = BcosLinear(dim, dim, b=2)
+        
+        # FFN (using B-cos Linear)
+        self.fc1 = BcosLinear(dim, dim * 4, b=2)
+        self.fc2 = BcosLinear(dim * 4, dim, b=2)
+        
+        # Layer norms (uncentered)
+        self.norm1 = NormUncentered1d(dim)
+        self.norm2 = NormUncentered1d(dim)
+    
+    def forward(self, x):
+        # Multi-head attention
+        x = x + self.proj(self.attention(self.norm1(x)))
+        # FFN
+        x = x + self.fc2(self.fc1(self.norm2(x)))
+        return x
+```
+
+See full implementation in `bcos/models/vit.py`.
+
+## MaxOut for Increased Expressiveness
+
+Optionally, B-cos layers can use MaxOut to increase capacity:
+
+```python
+# Create 2x features internally, take max
+conv = BcosConv2d(in_channels=3, out_channels=64, kernel_size=3, 
+                  b=2, max_out=2)
+
+# Internally creates 128 features, outputs max of pairs -> 64 features
+```
+
+How it works (`bcos/modules/bcosconv2d.py:150-155`):
+
+```python
+if self.max_out > 1:
+    M = self.max_out
+    O = self.out_channels
+    out = out.unflatten(dim=1, sizes=(O, M))
+    out = out.max(dim=2, keepdim=False).values
+```
+
+This increases expressiveness while maintaining interpretability because:
+- Each max operation is still interpretable (takes larger contributor)
+- Network can learn complementary feature detectors
+
+⚠️ **Note**: MaxOut was used in B-cos v1 but is optional in v2. Most models use `max_out=1`.
+
+## Model Variants
+
+B-cos Networks support various architectures:
+
+### CNNs
+
+```python
+import torch
+
+# ResNet family
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet101', pretrained=True)
+
+# DenseNet family  
+model = torch.hub.load('B-cos/B-cos-v2', 'densenet121', pretrained=True)
+
+# ConvNeXt
+model = torch.hub.load('B-cos/B-cos-v2', 'convnext_tiny', pretrained=True)
+
+# VGG
+model = torch.hub.load('B-cos/B-cos-v2', 'vgg11_bnu', pretrained=True)
+```
+
+All use:
+- `BcosConv2d` for convolutions
+- `BatchNormUncentered2d` for normalization
+- No explicit activation functions
+
+### Vision Transformers
+
+```python
+# Simple ViT variants
+model = torch.hub.load('B-cos/B-cos-v2', 'simple_vit_s_patch16_224', pretrained=True)
+model = torch.hub.load('B-cos/B-cos-v2', 'simple_vit_b_patch16_224', pretrained=True)
+
+# ViT-C variants (convolutional stem)
+model = torch.hub.load('B-cos/B-cos-v2', 'vitc_s_patch1_14', pretrained=True)
+model = torch.hub.load('B-cos/B-cos-v2', 'vitc_b_patch1_14', pretrained=True)
+```
+
+All use:
+- `BcosLinear` for all linear projections
+- Uncentered layer normalization
+- Same interpretability guarantees as CNNs
+
+See all available models in [Model Zoo](/model-zoo/overview).
+
+## Architectural Guidelines
+
+When building custom B-cos architectures:
+
+### ✅ Do:
+
+1. **Replace all linear layers** with `BcosConv2d` or `BcosLinear`
+2. **Use uncentered normalization** (BNU, GroupNormUncentered, etc.)
+3. **Remove explicit activations** (ReLU, GELU, etc.)
+4. **Keep residual connections** (they work fine!)
+5. **Use AddInverse** for input preprocessing
+6. **Set B=2** (good default, can experiment with B=1 for pure linearity)
+
+### ❌ Don't:
+
+1. **Use bias terms** anywhere
+2. **Use standard BatchNorm/LayerNorm** (breaks interpretability)
+3. **Add activation functions** after B-cos layers
+4. **Normalize input with mean subtraction** (`transforms.Normalize`)
+5. **Use explanation mode during training**
+
+## Performance Considerations
+
+### Computational Overhead
+
+B-cos layers have slightly more computation than standard layers:
+
+```python
+# Standard Conv2d
+output = conv2d(input, weight)
+
+# BcosConv2d
+norm_weight = weight / ||weight||  # Weight normalization
+linear_out = conv2d(input, norm_weight)
+patch_norms = sqrt(avg_pool2d(input^2, ...))  # Additional operation
+dynamic_scale = |linear_out| / patch_norms
+output = dynamic_scale * linear_out
+```
+
+Overhead is typically **~10-20%** more FLOPs, but:
+- ✅ Weight normalization is a fixed cost
+- ✅ Patch norm computation is efficient with avg_pool2d
+- ✅ Most time is still in the convolution itself
+
+### Memory Usage
+
+Memory usage is comparable to standard networks:
+- Same number of parameters (weights are same size)
+- Slightly more intermediate activations (patch norms)
+- No significant memory overhead
+
+### Training Considerations
+
+B-cos Networks can be trained with standard methods:
+- Same optimizers (Adam, SGD with momentum)
+- Same learning rate schedules
+- Same augmentations (except mean/std normalization)
+
+See [Training Guide](/training/overview) for details.
+
+## Comparing Architectures
+
+| Component | Standard CNN | B-cos Network |
+|-----------|-------------|---------------|
+| Convolution | `nn.Conv2d` | `BcosConv2d` |
+| Linear | `nn.Linear` | `BcosLinear` |
+| Activation | ReLU, GELU, etc. | None (built-in) |
+| Normalization | BatchNorm | BatchNormUncentered |
+| Bias terms | Yes | No |
+| Input preprocessing | Normalize(mean, std) | AddInverse() |
+| Interpretability | Requires post-hoc | Inherent |
+
+## Example: Converting a Standard Model
+
+Here's how to convert a simple CNN to B-cos:
+
+```python
+import torch.nn as nn
+from bcos.modules import BcosConv2d, BcosLinear
+from bcos.modules.norms import BatchNormUncentered2d
+
+# Standard CNN
+class StandardCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 32, 3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.relu1 = nn.ReLU()
+        
+        self.conv2 = nn.Conv2d(32, 64, 3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.relu2 = nn.ReLU()
+        
+        self.fc = nn.Linear(64 * 8 * 8, 10)
+    
+    def forward(self, x):
+        x = self.relu1(self.bn1(self.conv1(x)))
+        x = self.relu2(self.bn2(self.conv2(x)))
+        x = x.flatten(1)
+        x = self.fc(x)
+        return x
+
+# B-cos CNN
+class BcosCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = BcosConv2d(6, 32, 3, padding=1, b=2)  # 6 channels for AddInverse
+        self.bn1 = BatchNormUncentered2d(32)
+        # No ReLU!
+        
+        self.conv2 = BcosConv2d(32, 64, 3, padding=1, b=2)
+        self.bn2 = BatchNormUncentered2d(64)
+        # No ReLU!
+        
+        self.fc = BcosLinear(64 * 8 * 8, 10, b=2)  # No bias
+    
+    def forward(self, x):
+        x = self.bn1(self.conv1(x))
+        x = self.bn2(self.conv2(x))
+        x = x.flatten(1)
+        x = self.fc(x)
+        return x
+```
+
+**Key changes**:
+1. Input channels: 3 → 6 (for AddInverse)
+2. All layers: Standard → B-cos variants
+3. BatchNorm → BatchNormUncentered
+4. Removed all ReLU activations
+5. Added `b=2` parameter
+
+## Further Reading
+
+- **Paper**: [B-cos Alignment for Inherently Interpretable CNNs and Vision Transformers](https://arxiv.org/abs/2306.10898)
+- Learn about the math in [B-cos Alignment](/concepts/bcos-alignment)
+- See how to use explanations in [Interpretability](/concepts/interpretability)
+- Training instructions in [Training Guide](/training/overview)

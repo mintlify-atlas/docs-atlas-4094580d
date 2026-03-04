@@ -1,0 +1,263 @@
+---
+title: DataModules
+description: PyTorch Lightning DataModules for streamlined dataset management and loading
+---
+
+DataModules provide a standardized interface for loading and preparing datasets in B-cos Networks. Built on PyTorch Lightning, they handle data loading, augmentation, and batch processing.
+
+<Note>
+  DataModules require PyTorch Lightning to be installed:
+  ```bash
+  pip install pytorch-lightning
+  ```
+</Note>
+
+## Base Class
+
+### ClassificationDataModule
+
+<ParamField path="ClassificationDataModule" type="class">
+  Base class for classification dataset modules.
+
+  All dataset-specific modules inherit from this class and automatically register themselves in a registry for easy access.
+
+  <Expandable title="Class Attributes">
+    <ParamField path="NUM_CLASSES" type="int" required>
+      Number of classes in the dataset.
+    </ParamField>
+
+    <ParamField path="NUM_TRAIN_EXAMPLES" type="int" optional>
+      Number of training examples in the dataset.
+    </ParamField>
+
+    <ParamField path="NUM_EVAL_EXAMPLES" type="int" optional>
+      Number of evaluation examples in the dataset.
+    </ParamField>
+
+    <ParamField path="CATEGORIES" type="List[str]" optional>
+      List of category names in the dataset.
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="Parameters">
+    <ParamField path="config" type="dict" required>
+      Configuration dictionary with the following keys:
+      - `batch_size` (int): Batch size for data loaders
+      - `num_workers` (int): Number of worker processes for data loading
+      - `train_transform`: Transform to apply to training data
+      - `test_transform`: Transform to apply to validation/test data
+      - `mixup_alpha` (float, optional): Alpha parameter for Mixup augmentation
+      - `cutmix_alpha` (float, optional): Alpha parameter for Cutmix augmentation
+      - `p_gridified` (float, optional): Probability for grid augmentation
+      - `ra_repetitions` (int, optional): Repetitions for Repeated Augmentation sampler
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="Methods">
+    <ParamField path="train_dataloader" type="method">
+      Creates the training data loader.
+
+      **Returns:**
+      - DataLoader: Configured training data loader with appropriate sampler and collate function
+    </ParamField>
+
+    <ParamField path="val_dataloader" type="method">
+      Creates the validation data loader.
+
+      **Returns:**
+      - DataLoader: Configured validation data loader
+    </ParamField>
+
+    <ParamField path="test_dataloader" type="method">
+      Creates the test data loader.
+
+      **Returns:**
+      - DataLoader: Configured test data loader
+    </ParamField>
+
+    <ParamField path="get_train_collate_fn" type="classmethod">
+      Creates a collate function with optional augmentations.
+
+      **Parameters:**
+      - `mixup_alpha` (float): Alpha for Mixup. Default: 0.0
+      - `cutmix_alpha` (float): Alpha for Cutmix. Default: 0.0
+      - `p_gridified` (float): Probability for grid augmentation. Default: 0.0
+
+      **Returns:**
+      - Callable or None: Collate function or None if no augmentations
+    </ParamField>
+
+    <ParamField path="get_train_sampler" type="method">
+      Creates the training sampler if needed.
+
+      **Returns:**
+      - Sampler or None: RASampler if repeated augmentation is configured, None otherwise
+    </ParamField>
+
+    <ParamField path="registry" type="classmethod">
+      Returns the registry of all registered data modules.
+
+      **Returns:**
+      - dict: Dictionary mapping dataset names to DataModule classes
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Dataset Modules
+
+### ImageNetDataModule
+
+<ParamField path="ImageNetDataModule" type="class">
+  DataModule for ImageNet (ILSVRC2012) dataset.
+
+  <Expandable title="Dataset Information">
+    - **Classes**: 1,000
+    - **Training Examples**: 1,281,167
+    - **Validation Examples**: 50,000
+    - **Categories**: Full list of ImageNet class names available via `CATEGORIES` attribute
+  </Expandable>
+
+  <Expandable title="Parameters">
+    <ParamField path="config" type="dict" required>
+      Configuration dictionary. In addition to base class parameters, supports:
+      - `cache_dataset` (str, optional): Caching strategy
+        - `"shm"`: Cache dataset in shared memory (`/dev/shm`)
+        - `"onthefly"`: Use Bagua's on-the-fly caching
+        - `None`: No caching
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="Methods">
+    <ParamField path="prepare_data" type="method">
+      Prepares data by caching to shared memory if configured.
+
+      Called once per node. Only executes if `cache_dataset="shm"`.
+    </ParamField>
+
+    <ParamField path="setup" type="method">
+      Sets up train and validation datasets.
+
+      **Parameters:**
+      - `stage` (str): Either "fit" or "test"
+
+      Loads datasets from paths specified in `bcos.settings.IMAGENET_PATH`.
+    </ParamField>
+  </Expandable>
+
+  **Example:**
+  ```python
+  from bcos.data.datamodules import ImageNetDataModule
+  from bcos.data.presets import (
+      ImageNetClassificationPresetTrain,
+      ImageNetClassificationPresetEval
+  )
+
+  config = {
+      "batch_size": 256,
+      "num_workers": 8,
+      "train_transform": ImageNetClassificationPresetTrain(
+          crop_size=224,
+          is_bcos=True
+      ),
+      "test_transform": ImageNetClassificationPresetEval(
+          crop_size=224,
+          is_bcos=True
+      ),
+      "mixup_alpha": 0.2,
+      "cutmix_alpha": 1.0,
+  }
+
+  datamodule = ImageNetDataModule(config)
+  ```
+</ParamField>
+
+### CIFAR10DataModule
+
+<ParamField path="CIFAR10DataModule" type="class">
+  DataModule for CIFAR-10 dataset.
+
+  <Expandable title="Dataset Information">
+    - **Classes**: 10
+    - **Training Examples**: 50,000
+    - **Test Examples**: 10,000
+    - **Categories**: airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck
+  </Expandable>
+
+  <Expandable title="Parameters">
+    <ParamField path="config" type="dict" required>
+      Configuration dictionary with standard DataModule parameters (see `ClassificationDataModule`).
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="Methods">
+    <ParamField path="setup" type="method">
+      Sets up train and test datasets.
+
+      **Parameters:**
+      - `stage` (str): Either "fit" or "test"
+
+      Downloads CIFAR-10 if not already present. Data is stored in the path specified by `bcos.settings.DATA_ROOT`.
+    </ParamField>
+  </Expandable>
+
+  **Example:**
+  ```python
+  from bcos.data.datamodules import CIFAR10DataModule
+  from bcos.data.presets import (
+      CIFAR10ClassificationPresetTrain,
+      CIFAR10ClassificationPresetTest
+  )
+
+  config = {
+      "batch_size": 128,
+      "num_workers": 4,
+      "train_transform": CIFAR10ClassificationPresetTrain(is_bcos=True),
+      "test_transform": CIFAR10ClassificationPresetTest(is_bcos=True),
+  }
+
+  datamodule = CIFAR10DataModule(config)
+  ```
+</ParamField>
+
+## Usage with PyTorch Lightning
+
+DataModules integrate seamlessly with PyTorch Lightning trainers:
+
+```python
+import pytorch_lightning as pl
+from bcos.data.datamodules import CIFAR10DataModule
+from bcos.data.presets import (
+    CIFAR10ClassificationPresetTrain,
+    CIFAR10ClassificationPresetTest
+)
+
+# Configure data module
+config = {
+    "batch_size": 128,
+    "num_workers": 4,
+    "train_transform": CIFAR10ClassificationPresetTrain(is_bcos=True),
+    "test_transform": CIFAR10ClassificationPresetTest(is_bcos=True),
+    "mixup_alpha": 0.2,
+}
+
+datamodule = CIFAR10DataModule(config)
+
+# Use with trainer
+trainer = pl.Trainer(max_epochs=100)
+trainer.fit(model, datamodule=datamodule)
+```
+
+## Registry Access
+
+All DataModules are automatically registered and can be accessed via the registry:
+
+```python
+from bcos.data.datamodules import ClassificationDataModule
+
+# Get registry
+registry = ClassificationDataModule.registry()
+print(registry.keys())  # dict_keys(['ImageNet', 'CIFAR10'])
+
+# Access a specific module class
+CIFAR10DataModule = registry['CIFAR10']
+```

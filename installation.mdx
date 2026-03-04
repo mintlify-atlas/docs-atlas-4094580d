@@ -1,0 +1,401 @@
+---
+title: Installation
+description: Install B-cos Networks and set up your environment for training and inference
+---
+
+## Quick Install (Inference Only)
+
+If you only need to use pretrained models for inference, simply install the `bcos` package:
+
+<CodeGroup>
+```bash pip
+pip install bcos
+```
+
+```bash conda
+conda install -c conda-forge bcos
+```
+</CodeGroup>
+
+This lightweight installation includes:
+- All model architectures (ResNets, DenseNets, ConvNeXt, ViTs)
+- B-cos modules for building custom models
+- Pretrained model loading via `torch.hub`
+- Explanation utilities and transforms
+
+<Note>
+  The `bcos` package only requires PyTorch and torchvision as dependencies.
+</Note>
+
+## Full Installation (Training & Development)
+
+For training custom models or reproducing research results, you'll need the complete development environment.
+
+### Using Conda (Recommended)
+
+Conda provides a reproducible environment with all dependencies:
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/B-cos/B-cos-v2.git
+    cd B-cos-v2
+    ```
+  </Step>
+  
+  <Step title="Create Conda Environment">
+    ```bash
+    conda env create -f environment.yml
+    conda activate bcos
+    ```
+    
+    This creates an environment with all necessary packages for training, including:
+    - PyTorch with CUDA support
+    - torchvision
+    - Training utilities (timm, wandb, etc.)
+    - Evaluation tools
+  </Step>
+  
+  <Step title="Verify Installation">
+    ```bash
+    python -c "import bcos; print(bcos.__version__)"
+    ```
+  </Step>
+</Steps>
+
+### Using Pip
+
+For pip-based installations:
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/B-cos/B-cos-v2.git
+    cd B-cos-v2
+    ```
+  </Step>
+  
+  <Step title="Install Dependencies">
+    ```bash
+    pip install -r requirements-train.txt
+    ```
+    
+    This installs all packages needed for training and evaluation.
+  </Step>
+  
+  <Step title="Install in Development Mode (Optional)">
+    ```bash
+    pip install -e .
+    ```
+    
+    This allows you to modify the source code and see changes immediately.
+  </Step>
+</Steps>
+
+## Setting Up Data Paths
+
+For training and evaluation on datasets, you need to configure data paths.
+
+### Option 1: Environment Variables (Recommended)
+
+Set environment variables in your shell configuration (`.bashrc`, `.zshrc`, etc.):
+
+```bash
+# Add to your shell configuration file
+export DATA_ROOT="/path/to/data"  # For CIFAR-10 (auto-downloads if needed)
+export IMAGENET_PATH="/path/to/imagenet"  # For ImageNet
+```
+
+<Note>
+  Replace `/path/to/data` and `/path/to/imagenet` with your actual data directories.
+</Note>
+
+For ImageNet, the directory structure should be:
+
+```
+IMAGENET_PATH/
+├── train/
+│   ├── n01440764/
+│   │   ├── n01440764_10026.JPEG
+│   │   └── ...
+│   ├── n01443537/
+│   └── ...
+└── val/
+    ├── n01440764/
+    │   ├── ILSVRC2012_val_00000293.JPEG
+    │   └── ...
+    ├── n01443537/
+    └── ...
+```
+
+### Option 2: Direct Configuration
+
+Alternatively, edit the settings file directly:
+
+```python
+# Edit bcos/settings.py
+DATA_ROOT = "/path/to/data"
+IMAGENET_PATH = "/path/to/imagenet"
+```
+
+### Data Path Details
+
+<AccordionGroup>
+  <Accordion title="DATA_ROOT - CIFAR-10">
+    Points to the directory where CIFAR-10 data will be stored/downloaded.
+    
+    ```bash
+    export DATA_ROOT="/data/cifar10"
+    ```
+    
+    If the data doesn't exist, it will be automatically downloaded on first use.
+  </Accordion>
+  
+  <Accordion title="IMAGENET_PATH - ImageNet">
+    Points to the ImageNet dataset directory containing `train/` and `val/` subdirectories.
+    
+    ```bash
+    export IMAGENET_PATH="/data/imagenet"
+    ```
+    
+    The ImageNet dataset must be downloaded separately from [image-net.org](https://image-net.org/).
+    
+    <Warning>
+      ImageNet requires registration and acceptance of terms. Pretrained models are trained on ImageNet and inherit its non-commercial use restrictions.
+    </Warning>
+  </Accordion>
+  
+  <Accordion title="Advanced: Caching Configuration">
+    For advanced setups with caching (shared memory, Redis), additional paths can be configured:
+    
+    ```bash
+    export IMAGENET_TRAIN_TAR_FILES_DIR="/path/to/tar/files"
+    export REDIS_SERVER_PATH="/path/to/redis/server"
+    ```
+    
+    These are only needed for distributed training with caching enabled.
+  </Accordion>
+</AccordionGroup>
+
+## Verify Installation
+
+Test your installation with a quick inference example:
+
+<CodeGroup>
+```python Test Basic Import
+import bcos
+import torch
+
+print(f"B-cos version: {bcos.__version__}")
+print(f"PyTorch version: {torch.__version__}")
+print(f"CUDA available: {torch.cuda.is_available()}")
+```
+
+```python Test Model Loading
+import torch
+
+# Load a pretrained model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet18', pretrained=True)
+print(f"Model loaded: {type(model).__name__}")
+print(f"Model has {sum(p.numel() for p in model.parameters())} parameters")
+```
+
+```python Test Explanation
+import torch
+from PIL import Image
+import requests
+from io import BytesIO
+
+# Load model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet18', pretrained=True)
+model.eval()
+
+# Download a sample image
+url = "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
+response = requests.get(url)
+img = Image.open(BytesIO(response.content))
+
+# Generate explanation
+img_tensor = model.transform(img)[None].requires_grad_()
+expl_out = model.explain(img_tensor)
+
+print(f"Prediction: {expl_out['prediction']}")
+print(f"Explanation shape: {expl_out['explanation'].shape}")
+print("Installation successful!")
+```
+</CodeGroup>
+
+## Package Contents
+
+The `bcos` package provides the following public API:
+
+```python
+import bcos
+
+# Models and pretrained weights
+bcos.models          # Model architectures
+bcos.pretrained      # Pretrained model entrypoints
+
+# Building blocks
+bcos.modules         # B-cos layers (BcosConv2d, etc.)
+bcos.transforms      # Data transforms (AddInverse, etc.)
+bcos.presets         # Preset transform pipelines
+
+# Training utilities
+bcos.optim           # Optimizer and scheduler factories
+bcos.settings        # Configuration settings
+
+# Explanation utilities
+bcos.explanation_mode         # Context manager for explanation mode
+bcos.gradient_to_image        # Convert gradients to visual explanations
+bcos.plot_contribution_map    # Visualize contribution maps
+```
+
+## Minimal Reference Implementation
+
+For easy integration into existing codebases, a minimal single-file implementation is provided:
+
+```python
+# Copy the minimal implementation
+from bcos.extra.minimal_bcos_resnet import resnet50
+
+# This provides a standalone B-cos ResNet implementation
+model = resnet50(pretrained=True)
+```
+
+The minimal implementation includes:
+- `BcosConv2d` layer definition
+- `BatchNorm2dUncenteredNoBias` normalization
+- Complete ResNet architecture
+- Explanation mode support
+
+Find it at: `extra/minimal_bcos_resnet.py`
+
+## Training Scripts
+
+Once installed, you can use the training and evaluation scripts:
+
+<CodeGroup>
+```bash Evaluate Model
+# Evaluate a pretrained model on ImageNet
+python evaluate.py --dataset ImageNet --hubconf resnet50 --batch-size 64
+```
+
+```bash Train Model
+# Train a ResNet-18 on ImageNet
+python train.py \
+  --dataset ImageNet \
+  --base_network bcos_final \
+  --experiment_name resnet18
+```
+
+```bash Train on CIFAR-10
+# Train on CIFAR-10
+python train.py \
+  --dataset CIFAR10 \
+  --base_network bcos_final \
+  --experiment_name resnet18
+```
+</CodeGroup>
+
+For detailed training instructions, see `TRAINING.md` in the repository.
+
+## Docker Installation (Optional)
+
+For containerized environments:
+
+```dockerfile
+FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+
+# Install bcos package
+RUN pip install bcos
+
+# Or for full development environment
+# COPY requirements-train.txt .
+# RUN pip install -r requirements-train.txt
+
+WORKDIR /workspace
+```
+
+## System Requirements
+
+### Minimum Requirements (Inference)
+- Python 3.8+
+- PyTorch 1.12+
+- torchvision 0.13+
+- 4GB RAM
+- No GPU required (CPU inference supported)
+
+### Recommended (Training)
+- Python 3.9+
+- PyTorch 2.0+
+- torchvision 0.15+
+- CUDA 11.7+ compatible GPU
+- 16GB+ RAM
+- 50GB+ disk space (for ImageNet)
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="ImportError: No module named 'bcos'">
+    If you installed from source, make sure the repository is in your Python path:
+    
+    ```bash
+    # Option 1: Install in development mode
+    pip install -e .
+    
+    # Option 2: Add to PYTHONPATH
+    export PYTHONPATH="/path/to/B-cos-v2:$PYTHONPATH"
+    ```
+  </Accordion>
+  
+  <Accordion title="CUDA out of memory during training">
+    Reduce batch size or use gradient accumulation:
+    
+    ```bash
+    python train.py --batch-size 32  # Reduce from default
+    ```
+    
+    Or use mixed precision training (automatic in newer PyTorch versions).
+  </Accordion>
+  
+  <Accordion title="FileNotFoundError: ImageNet data not found">
+    Verify your `IMAGENET_PATH` is set correctly:
+    
+    ```bash
+    echo $IMAGENET_PATH
+    ls $IMAGENET_PATH/train  # Should list class directories
+    ls $IMAGENET_PATH/val    # Should list class directories
+    ```
+  </Accordion>
+  
+  <Accordion title="torch.hub.load() fails with connection error">
+    If behind a firewall, you can manually download weights:
+    
+    ```python
+    # Download weights manually from GitHub releases
+    # https://github.com/B-cos/B-cos-v2/releases/tag/v0.0.1-weights
+    
+    # Load with local path
+    model = torch.hub.load(
+        'B-cos/B-cos-v2',
+        'resnet50',
+        pretrained=False,
+        force_reload=True
+    )
+    model.load_state_dict(torch.load('path/to/downloaded/weights.pth'))
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Start using B-cos Networks with a simple example
+  </Card>
+  
+  <Card title="Training Guide" icon="graduation-cap" href="/training">
+    Learn how to train custom B-cos models
+  </Card>
+</CardGroup>

@@ -1,0 +1,183 @@
+---
+title: Transforms
+description: B-cos specific image transformations for data preprocessing and augmentation
+---
+
+B-cos Networks requires specific transformations to prepare images for processing. This module provides custom transforms that handle the unique requirements of B-cos models.
+
+## AddInverse
+
+<ParamField path="AddInverse" type="class">
+  Adds inverse channels to the input tensor, doubling the channel dimension.
+  
+  For a `[B, C, H, W]` batch input, this transform produces a `[B, 2C, H, W]` output by concatenating the original channels with their inverse (`1 - channel`). Single image `[C, H, W]` inputs are also supported.
+
+  This is a core requirement for B-cos models, which operate on both original and inverted color channels.
+
+  <Expandable title="Parameters">
+    <ParamField path="dim" type="int" default="-3">
+      Dimension along which to add the inverse channels. Default is -3, which corresponds to the channel dimension in `[B, C, H, W]` tensors.
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="Methods">
+    <ParamField path="forward" type="method">
+      Apply the transform to a tensor.
+
+      **Parameters:**
+      - `in_tensor` (Tensor): Input tensor of shape `[B, C, H, W]` or `[C, H, W]`
+
+      **Returns:**
+      - Tensor: Output tensor with doubled channels `[B, 2C, H, W]` or `[2C, H, W]`
+    </ParamField>
+  </Expandable>
+
+  **Example:**
+  ```python
+  from bcos.data.transforms import AddInverse
+  import torch
+
+  transform = AddInverse()
+  img = torch.rand(3, 224, 224)  # RGB image
+  output = transform(img)  # Shape: [6, 224, 224]
+  ```
+</ParamField>
+
+## RandomMixup
+
+<ParamField path="RandomMixup" type="class">
+  Randomly applies Mixup augmentation to batches and targets.
+  
+  Implements the data augmentation technique from the paper ["mixup: Beyond Empirical Risk Minimization"](https://arxiv.org/abs/1710.09412).
+
+  <Expandable title="Parameters">
+    <ParamField path="num_classes" type="int" required>
+      Number of classes used for one-hot encoding.
+    </ParamField>
+
+    <ParamField path="p" type="float" default="0.5">
+      Probability of applying the transformation to a batch.
+    </ParamField>
+
+    <ParamField path="alpha" type="float" default="1.0">
+      Hyperparameter of the Beta distribution used for mixup. Must be greater than 0.
+    </ParamField>
+
+    <ParamField path="inplace" type="bool" default="False">
+      Whether to make this transform inplace to save memory.
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="Methods">
+    <ParamField path="forward" type="method">
+      Apply mixup to a batch and its targets.
+
+      **Parameters:**
+      - `batch` (Tensor): Float tensor of size `(B, C, H, W)`
+      - `target` (Tensor): Integer tensor of size `(B,)`
+
+      **Returns:**
+      - Tuple[Tensor, Tensor]: Transformed batch and one-hot encoded mixed targets
+
+      **Raises:**
+      - ValueError: If batch is not 4D or target is not 1D
+      - TypeError: If batch is not float or target is not int64
+    </ParamField>
+  </Expandable>
+
+  **Example:**
+  ```python
+  from bcos.data.transforms import RandomMixup
+  import torch
+
+  mixup = RandomMixup(num_classes=10, p=1.0, alpha=0.2)
+  batch = torch.rand(32, 3, 224, 224)
+  targets = torch.randint(0, 10, (32,))
+  mixed_batch, mixed_targets = mixup(batch, targets)
+  ```
+</ParamField>
+
+## RandomCutmix
+
+<ParamField path="RandomCutmix" type="class">
+  Randomly applies Cutmix augmentation to batches and targets.
+  
+  Implements the data augmentation from the paper ["CutMix: Regularization Strategy to Train Strong Classifiers with Localizable Features"](https://arxiv.org/abs/1905.04899).
+
+  <Expandable title="Parameters">
+    <ParamField path="num_classes" type="int" required>
+      Number of classes used for one-hot encoding.
+    </ParamField>
+
+    <ParamField path="p" type="float" default="0.5">
+      Probability of applying the transformation to a batch.
+    </ParamField>
+
+    <ParamField path="alpha" type="float" default="1.0">
+      Hyperparameter of the Beta distribution used for cutmix. Must be greater than 0.
+    </ParamField>
+
+    <ParamField path="inplace" type="bool" default="False">
+      Whether to make this transform inplace to save memory.
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="Methods">
+    <ParamField path="forward" type="method">
+      Apply cutmix to a batch and its targets.
+
+      **Parameters:**
+      - `batch` (Tensor): Float tensor of size `(B, C, H, W)`
+      - `target` (Tensor): Integer tensor of size `(B,)`
+
+      **Returns:**
+      - Tuple[Tensor, Tensor]: Transformed batch and one-hot encoded mixed targets
+
+      **Raises:**
+      - ValueError: If batch is not 4D or target is not 1D
+      - TypeError: If batch is not float or target is not int64
+    </ParamField>
+  </Expandable>
+
+  **Example:**
+  ```python
+  from bcos.data.transforms import RandomCutmix
+  import torch
+
+  cutmix = RandomCutmix(num_classes=10, p=1.0, alpha=1.0)
+  batch = torch.rand(32, 3, 224, 224)
+  targets = torch.randint(0, 10, (32,))
+  mixed_batch, mixed_targets = cutmix(batch, targets)
+  ```
+</ParamField>
+
+## SplitAndGrid
+
+<ParamField path="SplitAndGrid" type="class">
+  Splits batches into grids for specialized augmentation.
+  
+  This transform creates a grid layout from a portion of the batch and adjusts targets accordingly.
+
+  <Expandable title="Parameters">
+    <ParamField path="p_gridified" type="float" required>
+      Proportion of the batch to apply gridification to.
+    </ParamField>
+
+    <ParamField path="num_classes" type="int" required>
+      Number of classes for one-hot encoding.
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="Methods">
+    <ParamField path="forward" type="method">
+      Apply grid transformation to a batch.
+
+      **Parameters:**
+      - `batch` (Tensor): Input batch tensor
+      - `target` (Tensor): Target labels
+
+      **Returns:**
+      - Tuple[Tensor, Tensor]: Transformed batch and adjusted targets
+    </ParamField>
+  </Expandable>
+</ParamField>

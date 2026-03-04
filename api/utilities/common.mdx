@@ -1,0 +1,378 @@
+---
+title: Common Utilities
+description: Shared utilities and mixin classes for B-cos models
+---
+
+## Overview
+
+The common utilities module provides the `BcosUtilMixin` class, which adds convenient explanation and attribution methods to B-cos models.
+
+## BcosUtilMixin
+
+A mixin class that provides useful helpers for dealing with B-cos explanations. This mixin attaches B-cos-specific functionality to any model class.
+
+### Class Definition
+
+```python
+class BcosUtilMixin:
+    def __init__(self, *args: Any, **kwargs: Any)
+```
+
+### Parameters
+
+<ParamField path="args" type="Any">
+  Positional arguments passed to the parent class (e.g., `torch.nn.Module`).
+</ParamField>
+
+<ParamField path="kwargs" type="Any">
+  Keyword arguments passed to the parent class.
+</ParamField>
+
+### Important Notes
+
+<Warning>
+  Since this is a mixin, you must inherit from `BcosUtilMixin` **first**, then from the actual base class (e.g., `torch.nn.Module`).
+</Warning>
+
+### Basic Usage
+
+```python
+import torch
+import torch.nn as nn
+from bcos.common import BcosUtilMixin
+from bcos.modules import BcosConv2d
+
+class MyBcosModel(BcosUtilMixin, nn.Module):
+    def __init__(self, in_channels: int, num_classes: int):
+        super().__init__()
+        self.conv1 = BcosConv2d(in_channels, 64, kernel_size=3)
+        self.conv2 = BcosConv2d(64, 128, kernel_size=3)
+        self.fc = nn.Linear(128, num_classes)
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = x.mean(dim=[2, 3])  # Global average pooling
+        return self.fc(x)
+
+# Instantiate the model
+model = MyBcosModel(in_channels=6, num_classes=10)
+model.eval()
+```
+
+## Methods
+
+### explanation_mode
+
+Returns a context manager that puts the model in explanation mode.
+
+```python
+def explanation_mode(self) -> explanation_mode
+```
+
+#### Usage
+
+```python
+input_tensor = torch.randn(1, 6, 32, 32, requires_grad=True)
+
+with model.explanation_mode():
+    output = model(input_tensor)
+    output.max().backward()
+
+contribution_map = (input_tensor * input_tensor.grad).sum(1)
+```
+
+---
+
+### explain
+
+Generates a complete explanation for a given input tensor. This is a high-level convenience method for simple exploration and debugging.
+
+```python
+def explain(
+    self,
+    in_tensor: Tensor,
+    idx: Optional[int] = None,
+    **grad2img_kwargs
+) -> Dict[str, Any]
+```
+
+#### Parameters
+
+<ParamField path="in_tensor" type="torch.Tensor" required>
+  The input tensor to explain. Must be 4-dimensional with batch size of 1. Shape: `[1, C, H, W]`.
+</ParamField>
+
+<ParamField path="idx" type="int" default="None">
+  The index of the output class to explain. If None, explains the predicted class.
+</ParamField>
+
+<ParamField path="grad2img_kwargs" type="Any">
+  Additional keyword arguments passed to `gradient_to_image` (e.g., `smooth`, `alpha_percentile`).
+</ParamField>
+
+#### Returns
+
+<ResponseField name="result" type="Dict[str, Any]">
+  A dictionary containing:
+  - `"prediction"` (int): The predicted class index
+  - `"explained_class_idx"` (int): The class that was explained
+  - `"dynamic_linear_weights"` (Tensor): The gradients (input_tensor.grad)
+  - `"contribution_map"` (Tensor): The spatial contribution map
+  - `"explanation"` (np.ndarray): The RGBA visualization of the explanation
+</ResponseField>
+
+#### Usage Example
+
+```python
+import torch
+import matplotlib.pyplot as plt
+
+model = MyBcosModel(in_channels=6, num_classes=10)
+model.eval()
+
+# Prepare input (ensure requires_grad=True is set automatically by explain)
+input_tensor = torch.randn(1, 6, 32, 32)
+
+# Generate explanation
+expl_result = model.explain(input_tensor)
+
+print(f"Prediction: {expl_result['prediction']}")
+print(f"Explained class: {expl_result['explained_class_idx']}")
+
+# Visualize the explanation
+plt.figure(figsize=(12, 4))
+
+plt.subplot(1, 2, 1)
+plt.imshow(expl_result['explanation'])
+plt.title('Color Explanation')
+plt.axis('off')
+
+plt.subplot(1, 2, 2)
+ax, im = model.plot_contribution_map(expl_result['contribution_map'])
+plt.title('Contribution Map')
+plt.colorbar(im, ax=ax)
+
+plt.show()
+```
+
+#### Explaining a Specific Class
+
+```python
+# Explain class 5 instead of the prediction
+expl_result = model.explain(input_tensor, idx=5)
+print(f"Explained class: {expl_result['explained_class_idx']}")
+```
+
+<Warning>
+  The `explain` method is NOT optimized for speed. Use it for debugging and exploration, not in production or training loops.
+</Warning>
+
+---
+
+### gradient_to_image
+
+Static method that converts gradients to an RGBA image. This is an alias for the standalone `gradient_to_image` function.
+
+```python
+@staticmethod
+def gradient_to_image(
+    image: Tensor,
+    linear_mapping: Tensor,
+    smooth: int = 15,
+    alpha_percentile: float = 99.5
+) -> np.ndarray
+```
+
+See [gradient_to_image documentation](/api/utilities/visualization#gradient_to_image) for details.
+
+---
+
+### plot_contribution_map
+
+Static method that visualizes a contribution map. This is an alias for the standalone `plot_contribution_map` function.
+
+```python
+@staticmethod
+def plot_contribution_map(
+    contribution_map: Union[Tensor, np.ndarray],
+    ax: Optional[plt.Axes] = None,
+    vrange: Optional[float] = None,
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
+    hide_ticks: bool = True,
+    cmap: str = "bwr",
+    percentile: float = 99.5
+) -> Tuple[plt.Axes, matplotlib.image.AxesImage]
+```
+
+See [plot_contribution_map documentation](/api/utilities/visualization#plot_contribution_map) for details.
+
+---
+
+### attribute
+
+Generates contribution maps using the Input × Gradient (IxG) method. This method is Captum-compatible.
+
+```python
+def attribute(
+    self,
+    image: Union[Tensor, Tuple[Tensor]],
+    target: Union[int, Tuple[int], Tensor, List[int]],
+    **kwargs: Any
+) -> Tensor
+```
+
+#### Parameters
+
+<ParamField path="image" type="torch.Tensor | Tuple[torch.Tensor]" required>
+  Input image(s). Shape: `(1, C, H, W)`.
+</ParamField>
+
+<ParamField path="target" type="int | Tuple[int] | Tensor | List[int]" required>
+  Target class(es) to compute contributions for.
+</ParamField>
+
+<ParamField path="kwargs" type="Any">
+  Additional arguments (for compatibility).
+</ParamField>
+
+#### Returns
+
+<ResponseField name="attributions" type="torch.Tensor">
+  Contribution map for the specified target class.
+</ResponseField>
+
+<Note>
+  This method requires the Captum library to be installed. It will raise an ImportError if Captum is not available.
+</Note>
+
+---
+
+### attribute_selection
+
+Runs `attribute` for multiple target classes and concatenates the results.
+
+```python
+def attribute_selection(
+    self,
+    image: Tensor,
+    targets: Union[Tuple[int], Tensor, List[int]],
+    **kwargs: Any
+) -> Tensor
+```
+
+#### Parameters
+
+<ParamField path="image" type="torch.Tensor" required>
+  Input image. Shape: `(1, C, H, W)`.
+</ParamField>
+
+<ParamField path="targets" type="Tuple[int] | Tensor | List[int]" required>
+  List of target classes to compute contributions for.
+</ParamField>
+
+#### Returns
+
+<ResponseField name="attributions" type="torch.Tensor">
+  Concatenated contribution maps for all specified classes. Shape: `(len(targets), H, W)`.
+</ResponseField>
+
+#### Usage Example
+
+```python
+import torch
+
+model = MyBcosModel(in_channels=6, num_classes=10)
+model.eval()
+
+input_tensor = torch.randn(1, 6, 32, 32)
+
+# Get attributions for classes 0, 1, and 2
+attributions = model.attribute_selection(
+    image=input_tensor,
+    targets=[0, 1, 2]
+)
+
+print(f"Attributions shape: {attributions.shape}")  # [3, 32, 32]
+
+# Visualize attributions for each class
+import matplotlib.pyplot as plt
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+for i, ax in enumerate(axes):
+    model.plot_contribution_map(attributions[i], ax=ax)
+    ax.set_title(f'Class {i}')
+plt.show()
+```
+
+---
+
+### Class Attribute: to_probabilities
+
+A static function reference for converting model outputs to probabilities.
+
+```python
+to_probabilities = torch.sigmoid
+```
+
+By default, this is set to `torch.sigmoid`, but can be overridden if needed:
+
+```python
+class MyBcosModel(BcosUtilMixin, nn.Module):
+    to_probabilities = torch.softmax  # Use softmax instead
+    # ...
+```
+
+## Complete Example
+
+```python
+import torch
+import torch.nn as nn
+from bcos.common import BcosUtilMixin
+from bcos.modules import BcosConv2d
+import matplotlib.pyplot as plt
+
+# Define a B-cos model with the mixin
+class SimpleBcosNet(BcosUtilMixin, nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = BcosConv2d(6, 32, kernel_size=3, padding=1)
+        self.conv2 = BcosConv2d(32, 64, kernel_size=3, padding=1)
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Linear(64, 10)
+    
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.pool(x)
+        x = x.view(x.size(0), -1)
+        return self.fc(x)
+
+# Create model and input
+model = SimpleBcosNet()
+model.eval()
+input_tensor = torch.randn(1, 6, 32, 32)
+
+# Generate explanation using the convenient explain method
+result = model.explain(input_tensor)
+
+# Display results
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+axes[0].imshow(result['explanation'])
+axes[0].set_title(f"Explanation (Predicted: {result['prediction']})")
+axes[0].axis('off')
+
+model.plot_contribution_map(result['contribution_map'], ax=axes[1])
+axes[1].set_title('Contribution Map')
+
+plt.tight_layout()
+plt.show()
+```
+
+## See Also
+
+- [explanation_mode](/api/utilities/explanation-mode) - Context manager for explanation mode
+- [Visualization Utilities](/api/utilities/visualization) - Functions for visualizing explanations
+- [B-cos Modules](/api/modules) - Core B-cos layer implementations

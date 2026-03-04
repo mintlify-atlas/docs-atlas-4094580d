@@ -1,0 +1,517 @@
+---
+title: Distributed Training
+description: Scale B-cos Networks training across multiple GPUs and nodes using DDP and SLURM
+---
+
+B-cos Networks supports efficient distributed training through PyTorch's Distributed Data Parallel (DDP) and SLURM integration via submitit. This enables scaling from single-GPU to multi-node training.
+
+## Overview
+
+The framework provides two training modes:
+
+- **Local Multi-GPU**: Use `train.py` with automatic or forced DDP
+- **SLURM Cluster**: Use `run_with_submitit.py` for automatic job submission and management
+
+## Local Multi-GPU Training
+
+### Automatic DDP
+
+PyTorch Lightning automatically enables DDP when multiple GPUs are available:
+
+```bash
+# Automatically uses all available GPUs
+python train.py \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_18
+```
+
+### Force DDP
+
+Explicitly enable distributed training:
+
+```bash
+python train.py \
+    --distributed \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_18
+```
+
+### DDP Strategy
+
+The framework uses `ddp_find_unused_parameters_false` strategy for efficiency:
+
+```python bcos/training/trainer.py
+def put_trainer_args_into_trainer_config(args, trainer_config):
+    if args.distributed:
+        trainer_config["strategy"] = "ddp_find_unused_parameters_false"
+```
+
+This optimizes DDP by skipping unused parameter detection.
+
+## SLURM Cluster Training
+
+### Using run_with_submitit.py
+
+The `run_with_submitit.py` script provides seamless SLURM integration:
+
+```bash
+python run_with_submitit.py \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_18 \
+    --gpus 4 \
+    --nodes 1 \
+    --partition gpu20 \
+    --timeout 24
+```
+
+### Key Arguments
+
+<ParamField path="--gpus" type="int" required>
+  Number of GPUs per node
+</ParamField>
+
+<ParamField path="--nodes" type="int" required>
+  Number of nodes to use
+</ParamField>
+
+<ParamField path="--partition" type="string" required>
+  SLURM partition name (e.g., "gpu20", "gpu22")
+</ParamField>
+
+<ParamField path="--timeout" type="float">
+  Job duration in hours (e.g., 24.0 for 24 hours)
+</ParamField>
+
+<ParamField path="--timeout_min" type="int">
+  Alternative: job duration in minutes (use instead of --timeout)
+</ParamField>
+
+<ParamField path="--job_name" type="string">
+  Custom job name (defaults to experiment_name)
+</ParamField>
+
+### Example: 4 GPUs on 1 Node
+
+```bash
+python run_with_submitit.py \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_18 \
+    --gpus 4 \
+    --nodes 1 \
+    --partition gpu20 \
+    --timeout 48 \
+    --wandb_logger \
+    --wandb_project bcos-imagenet
+```
+
+This submits a job with:
+- 4 GPUs on 1 node
+- 48-hour timeout
+- W&B logging enabled
+
+### Example: 8 GPUs on 2 Nodes
+
+```bash
+python run_with_submitit.py \
+    --dataset ImageNet \
+    --base_network bcos_final_long \
+    --experiment_name resnet_50 \
+    --gpus 4 \
+    --nodes 2 \
+    --partition gpu22 \
+    --timeout 72
+```
+
+<Note>
+  **Total GPUs** = `gpus` × `nodes` = 4 × 2 = **8 GPUs**
+</Note>
+
+## Submitit Integration
+
+### How It Works
+
+The `run_with_submitit.py` script wraps `train.py` with submitit's job management:
+
+```python run_with_submitit.py
+import submitit
+import train
+
+class RunExperiment:
+    def __init__(self, args):
+        self.args = args
+    
+    def __call__(self):
+        # Setup distributed environment
+        submitit.helpers.TorchDistributedEnvironment().export(
+            set_cuda_visible_devices=False
+        )
+        # Run training
+        trainer.run_training(copy.deepcopy(self.args))
+    
+    def checkpoint(self):
+        # Handle automatic requeuing
+        self.args.resume = True
+        rejob = type(self)(copy.deepcopy(self.args))
+        return submitit.helpers.DelayedSubmission(rejob)
+```
+
+### Automatic Requeuing
+
+Submitit automatically requeues jobs that exceed time limits:
+
+1. Job approaches timeout
+2. Submitit saves checkpoint
+3. Job automatically requeued
+4. Training resumes from checkpoint
+
+<Info>
+  The `checkpoint()` method ensures `--resume=True` when requeuing, enabling seamless continuation.
+</Info>
+
+### Job Configuration
+
+Submitit executor configuration:
+
+```python run_with_submitit.py
+executor = submitit.AutoExecutor(
+    folder=get_job_dir(args),
+    slurm_max_num_timeout=300
+)
+
+executor.update_parameters(
+    name=args.job_name or args.experiment_name,
+    mem_gb=110 * args.gpus,        # Memory per node
+    gpus_per_node=args.gpus,
+    tasks_per_node=args.gpus,      # One task per GPU
+    cpus_per_task=16,              # CPUs per GPU
+    nodes=args.nodes,
+    timeout_min=timeout,
+    slurm_partition=args.partition,
+    slurm_signal_delay_s=4 * 60,   # 4-minute delay before timeout
+)
+```
+
+### SLURM Logs
+
+Job logs are stored in:
+
+```
+experiments/<dataset>/<base_network>/<experiment_name>/slurm_logs/<job_id>/
+├── <job_id>_0_log.out
+├── <job_id>_0_log.err
+└── submission.pkl
+```
+
+## Batch Size Considerations
+
+<Warning>
+  **Critical**: `batch_size` in configs is **per GPU**, not total effective batch size!
+</Warning>
+
+### Calculating Effective Batch Size
+
+```
+Effective Batch Size = batch_size × num_gpus × num_nodes × gradient_accumulation
+```
+
+### Example
+
+Config has `batch_size=64`, training on 4 GPUs:
+
+```python
+batch_size = 64  # Per GPU
+num_gpus = 4
+effective_batch_size = 64 * 4 = 256
+```
+
+### Adjusting for Different GPU Counts
+
+If you change the number of GPUs, adjust `batch_size` accordingly:
+
+```python
+# Original: 4 GPUs with batch_size=64 (effective=256)
+"data": {"batch_size": 64}
+
+# New: 8 GPUs, want same effective batch size
+# 256 / 8 = 32
+"data": {"batch_size": 32}
+```
+
+## Reproducing Paper Results
+
+### CIFAR-10: Single GPU
+
+CIFAR-10 models were trained on a single GPU:
+
+```bash
+python train.py \
+    --dataset CIFAR10 \
+    --base_network norm_ablations_final \
+    --experiment_name resnet_20_bnu-linear-nomaxout
+```
+
+<Info>
+  Experiment names ending with `-nomaxout` have `maxout=1` (disabled). Others use `maxout=2`.
+</Info>
+
+### ImageNet: 4 GPUs (bcos_final)
+
+Most ImageNet models were trained on 4 GPUs:
+
+```bash
+python run_with_submitit.py \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_18 \
+    --gpus 4 \
+    --nodes 1 \
+    --partition gpu20 \
+    --timeout 48
+```
+
+Effective batch size: `64 × 4 = 256`
+
+### ImageNet: 8 GPUs (bcos_final_long)
+
+Longer training configs used 8 GPUs (4 GPUs × 2 nodes):
+
+```bash
+python run_with_submitit.py \
+    --dataset ImageNet \
+    --base_network bcos_final_long \
+    --experiment_name resnet_50 \
+    --gpus 4 \
+    --nodes 2 \
+    --partition gpu20 \
+    --timeout 72
+```
+
+Effective batch size: `64 × 4 × 2 = 512`
+
+## Performance Optimization
+
+### Mixed Precision Training
+
+Enable automatic mixed precision (AMP) for faster training:
+
+```bash
+python train.py \
+    --amp \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_18
+```
+
+Or with submitit:
+
+```bash
+python run_with_submitit.py \
+    --amp \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_18 \
+    --gpus 4 \
+    --nodes 1
+```
+
+This uses FP16 precision where safe, reducing memory usage and increasing speed.
+
+### Gradient Accumulation
+
+Simulate larger batch sizes without more memory:
+
+```python
+"trainer": {
+    "max_epochs": 90,
+    "accumulate_grad_batches": 2,  # Accumulate over 2 batches
+}
+```
+
+Effective batch size becomes: `batch_size × num_gpus × accumulate_grad_batches`
+
+### Number of Workers
+
+Optimal `num_workers` typically: `4 × num_gpus`
+
+```python
+"data": {
+    "num_workers": 16,  # For 4 GPUs
+}
+```
+
+## Environment Setup
+
+### SLURM Environment
+
+The framework automatically detects SLURM:
+
+```python bcos/training/trainer.py
+if "SLURM_JOB_ID" in os.environ:
+    trainer_config["plugins"] = [
+        pl_env_plugins.SLURMEnvironment(auto_requeue=False)
+    ]
+```
+
+<Note>
+  `auto_requeue=False` because submitit handles requeuing.
+</Note>
+
+### Distributed Environment Variables
+
+Submitit automatically sets:
+
+- `MASTER_ADDR`: Master node address
+- `MASTER_PORT`: Master node port
+- `RANK`: Global rank of process
+- `LOCAL_RANK`: Local rank on node
+- `WORLD_SIZE`: Total number of processes
+
+## Monitoring Distributed Training
+
+### W&B Integration
+
+W&B automatically handles multi-process logging:
+
+```bash
+python run_with_submitit.py \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_18 \
+    --gpus 4 \
+    --nodes 1 \
+    --wandb_logger \
+    --wandb_project bcos-imagenet \
+    --wandb_name "resnet18-4gpu"
+```
+
+### Checking Job Status
+
+```bash
+# View submitted jobs
+squeue -u $USER
+
+# View job details
+scontrol show job <job_id>
+
+# Cancel job
+scancel <job_id>
+
+# View job output
+tail -f experiments/ImageNet/bcos_final/resnet_18/slurm_logs/<job_id>/<job_id>_0_log.out
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="NCCL timeout errors">
+    Increase timeout or check network connectivity:
+    
+    ```bash
+    export NCCL_TIMEOUT=7200  # 2 hours
+    export NCCL_DEBUG=INFO    # Verbose logging
+    ```
+  </Accordion>
+
+  <Accordion title="Out of memory with multiple GPUs">
+    Reduce per-GPU batch size:
+    
+    ```python
+    "data": {
+        "batch_size": 32,  # Reduce from 64
+    }
+    ```
+    
+    Or enable gradient accumulation to maintain effective batch size.
+  </Accordion>
+
+  <Accordion title="Training speed slower than expected">
+    Check:
+    - Data loading bottleneck (increase `num_workers`)
+    - Network bandwidth between nodes
+    - Enable AMP with `--amp`
+    - Ensure DDP strategy is active
+  </Accordion>
+
+  <Accordion title="Job doesn't start on SLURM">
+    Check:
+    - Partition availability: `sinfo`
+    - Account limits: `sacctmgr show assoc user=$USER`
+    - Requested resources are available
+    - Job priority: `sprio -j <job_id>`
+  </Accordion>
+
+  <Accordion title="Submitit automatic requeue not working">
+    Ensure checkpoint callback is enabled (automatic in framework):
+    
+    ```python
+    callbacks.append(pl_callbacks.ModelCheckpoint(
+        dirpath=save_dir,
+        save_last=True,  # Critical for resuming
+    ))
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Advanced: Multi-Node Debugging
+
+For debugging distributed issues:
+
+```bash
+python run_with_submitit.py \
+    --debug \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_18 \
+    --gpus 2 \
+    --nodes 1 \
+    --partition gpu20 \
+    --timeout 2
+```
+
+The `--debug` flag enables:
+- Deterministic mode
+- Post-mortem debugger on exceptions
+- Additional logging
+
+## Resource Estimation
+
+### Memory Requirements
+
+Typical GPU memory usage:
+
+- **ResNet-18**: ~4GB per GPU
+- **ResNet-50**: ~8GB per GPU
+- **ViT-B/16**: ~12GB per GPU
+
+Submitit allocates RAM: `110GB × num_gpus` per node
+
+### Training Time Estimates
+
+**CIFAR-10** (1 GPU, 100 epochs):
+- ResNet-20: ~30 minutes
+
+**ImageNet** (4 GPUs, 90 epochs):
+- ResNet-18: ~24 hours
+- ResNet-50: ~48 hours
+
+**ImageNet** (8 GPUs, longer training):
+- ResNet-50: ~36 hours (120 epochs)
+
+<Info>
+  Times vary based on hardware, data loading speed, and augmentation complexity.
+</Info>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/training/configuration">
+    Learn about experiment configuration
+  </Card>
+  <Card title="Evaluation" icon="chart-line" href="/evaluation">
+    Evaluate trained models
+  </Card>
+</CardGroup>

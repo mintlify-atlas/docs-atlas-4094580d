@@ -1,0 +1,491 @@
+---
+title: Datasets
+description: Set up and configure datasets for training B-cos Networks, including ImageNet and CIFAR-10
+---
+
+B-cos Networks supports multiple datasets through a flexible DataModule system based on PyTorch Lightning. This guide covers dataset setup, configuration, and customization.
+
+## Supported Datasets
+
+The framework includes built-in support for:
+
+- **ImageNet** (ILSVRC2012): 1,000 classes, 1.28M training images
+- **CIFAR-10**: 10 classes, 50K training images
+
+All datasets are handled through dataset-specific `DataModule` classes.
+
+## Setting Data Paths
+
+Before training, you need to configure data paths. You can do this in two ways:
+
+### Option 1: Environment Variables (Recommended)
+
+Set these environment variables:
+
+```bash
+# For CIFAR-10 (will be auto-downloaded)
+export DATA_ROOT="/path/to/data"
+
+# For ImageNet
+export IMAGENET_PATH="/path/to/imagenet"
+```
+
+Add them to your shell profile for persistence:
+
+```bash
+echo 'export DATA_ROOT="/path/to/data"' >> ~/.bashrc
+echo 'export IMAGENET_PATH="/path/to/imagenet"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Option 2: Edit settings.py
+
+Alternatively, edit `bcos/settings.py` directly:
+
+```python bcos/settings.py
+import os
+
+# Data root (mainly for CIFAR-10)
+DATA_ROOT = os.getenv("DATA_ROOT") or "/your/default/path"
+
+# ImageNet path
+IMAGENET_PATH = os.getenv("IMAGENET_PATH") or "/your/imagenet/path"
+```
+
+## CIFAR-10 Setup
+
+### Dataset Structure
+
+CIFAR-10 is automatically downloaded when first used. No manual setup required!
+
+```bash
+# Just set the data root
+export DATA_ROOT="/path/to/data"
+
+# Run training - dataset downloads automatically
+python train.py \
+    --dataset CIFAR10 \
+    --base_network norm_ablations_final \
+    --experiment_name resnet_20_bnu-linear-nomaxout
+```
+
+### CIFAR-10 DataModule
+
+The `CIFAR10DataModule` class handles all dataset operations:
+
+```python bcos/data/datamodules.py
+class CIFAR10DataModule(ClassificationDataModule):
+    NUM_CLASSES: int = 10
+    NUM_TRAIN_EXAMPLES: int = 50_000
+    NUM_EVAL_EXAMPLES: int = 10_000
+    CATEGORIES: List[str] = CIFAR10_CATEGORIES
+
+    def setup(self, stage: str) -> None:
+        DATA_ROOT = settings.DATA_ROOT
+        if stage == "fit":
+            self.train_dataset = CIFAR10(
+                root=DATA_ROOT,
+                train=True,
+                transform=self.config["train_transform"],
+                download=True,  # Auto-download
+            )
+        
+        self.eval_dataset = CIFAR10(
+            root=DATA_ROOT,
+            train=False,
+            transform=self.config["test_transform"],
+            download=True,
+        )
+```
+
+### Data Transforms
+
+CIFAR-10 uses specialized transforms for B-cos models:
+
+```python
+from bcos.data.presets import (
+    CIFAR10ClassificationPresetTrain,
+    CIFAR10ClassificationPresetTest,
+)
+
+"data": {
+    "train_transform": CIFAR10ClassificationPresetTrain(is_bcos=True),
+    "test_transform": CIFAR10ClassificationPresetTest(is_bcos=True),
+    "batch_size": 64,
+    "num_workers": 4,
+    "num_classes": 10,
+}
+```
+
+## ImageNet Setup
+
+### Directory Structure
+
+ImageNet must be organized with `train/` and `val/` subdirectories:
+
+```
+/path/to/imagenet/
+├── train/
+│   ├── n01440764/
+│   │   ├── n01440764_10026.JPEG
+│   │   └── ...
+│   ├── n01443537/
+│   └── ... (1000 class folders)
+└── val/
+    ├── n01440764/
+    │   ├── ILSVRC2012_val_00000293.JPEG
+    │   └── ...
+    ├── n01443537/
+    └── ... (1000 class folders)
+```
+
+### Verify Your Setup
+
+Ensure your ImageNet directory contains:
+
+- **1,000 class folders** in `train/` (n01440764, n01443537, etc.)
+- **1,000 class folders** in `val/`
+- **1,281,167 training images** total
+- **50,000 validation images** total
+
+### ImageNet DataModule
+
+The `ImageNetDataModule` handles ImageNet loading:
+
+```python bcos/data/datamodules.py
+class ImageNetDataModule(ClassificationDataModule):
+    NUM_CLASSES: int = 1000
+    NUM_TRAIN_EXAMPLES: int = 1_281_167
+    NUM_EVAL_EXAMPLES: int = 50_000
+    CATEGORIES: List[str] = IMAGENET_CATEGORIES
+
+    def setup(self, stage: str) -> None:
+        IMAGENET_PATH = settings.IMAGENET_PATH
+        if stage == "fit":
+            self.train_dataset = ImageFolder(
+                root=os.path.join(IMAGENET_PATH, "train"),
+                transform=self.config["train_transform"],
+            )
+            assert len(self.train_dataset) == self.NUM_TRAIN_EXAMPLES
+        
+        self.eval_dataset = ImageFolder(
+            root=os.path.join(IMAGENET_PATH, "val"),
+            transform=self.config["test_transform"],
+        )
+        assert len(self.eval_dataset) == self.NUM_EVAL_EXAMPLES
+```
+
+### Data Transforms
+
+ImageNet uses more sophisticated augmentation:
+
+```python
+from bcos.data.presets import (
+    ImageNetClassificationPresetEval,
+    ImageNetClassificationPresetTrain,
+)
+
+"data": {
+    "train_transform": ImageNetClassificationPresetTrain(
+        crop_size=224,
+        is_bcos=True,
+    ),
+    "test_transform": ImageNetClassificationPresetEval(
+        crop_size=224,
+        is_bcos=True,
+    ),
+    "batch_size": 64,  # Per GPU
+    "num_workers": 16,
+    "num_classes": 1000,
+}
+```
+
+### Optional: Dataset Caching
+
+For faster data loading on systems with fast local storage:
+
+#### On-the-fly Caching (Bagua)
+
+```bash
+python train.py \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_18 \
+    --cache_dataset onthefly
+```
+
+#### Shared Memory Caching
+
+```bash
+python train.py \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_18 \
+    --cache_dataset shm
+```
+
+<Warning>
+  Shared memory caching requires sufficient `/dev/shm` space and is mainly useful for cluster environments.
+</Warning>
+
+## Data Augmentation
+
+The framework supports several augmentation techniques:
+
+### Mixup
+
+Blend two images and their labels:
+
+```python
+"data": {
+    # ... other config
+    "mixup_alpha": 0.2,
+}
+```
+
+### Cutmix
+
+Cut and paste image patches:
+
+```python
+"data": {
+    # ... other config
+    "cutmix_alpha": 1.0,
+}
+```
+
+### Repeated Augmentation (RA)
+
+Sample each image multiple times per epoch with different augmentations:
+
+```python
+"data": {
+    # ... other config
+    "ra_repetitions": 3,
+}
+```
+
+Implementation uses `RASampler` from `bcos/data/sampler.py`.
+
+## DataModule System
+
+### Base Class: ClassificationDataModule
+
+All dataset classes inherit from `ClassificationDataModule`:
+
+```python bcos/data/datamodules.py
+class ClassificationDataModule(pl.LightningDataModule):
+    NUM_CLASSES: int = None
+    NUM_TRAIN_EXAMPLES: int = None
+    NUM_EVAL_EXAMPLES: int = None
+    CATEGORIES: List[str] = None
+    
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.batch_size = config["batch_size"]
+        self.num_workers = config["num_workers"]
+        # Setup augmentation
+        self.train_collate_fn = self.get_train_collate_fn(
+            config.get("mixup_alpha", 0.0),
+            config.get("cutmix_alpha", 0.0),
+            config.get("p_gridified", 0.0),
+        )
+    
+    def train_dataloader(self): ...
+    def val_dataloader(self): ...
+    def test_dataloader(self): ...
+```
+
+### Automatic Registry
+
+DataModules are automatically registered by name:
+
+```python
+# Class name: CIFAR10DataModule -> registered as "CIFAR10"
+# Class name: ImageNetDataModule -> registered as "ImageNet"
+
+# Access via registry
+registry = ClassificationDataModule.registry()
+CIFAR10DM = registry["CIFAR10"]
+```
+
+## Adding Custom Datasets
+
+To add a new dataset:
+
+### Step 1: Create DataModule Class
+
+Create a new class in `bcos/data/datamodules.py`:
+
+```python
+class MyDatasetDataModule(ClassificationDataModule):
+    NUM_CLASSES: int = 100  # Your dataset's number of classes
+    NUM_TRAIN_EXAMPLES: int = 50000  # Optional
+    NUM_EVAL_EXAMPLES: int = 10000   # Optional
+    CATEGORIES: List[str] = [...]    # Optional
+    
+    def setup(self, stage: str) -> None:
+        if stage == "fit":
+            self.train_dataset = YourDataset(
+                root=...,
+                transform=self.config["train_transform"],
+            )
+        
+        self.eval_dataset = YourDataset(
+            root=...,
+            transform=self.config["test_transform"],
+        )
+```
+
+<Note>
+  The class name **must** end with `DataModule`. The prefix (e.g., `MyDataset`) becomes the dataset identifier.
+</Note>
+
+### Step 2: Using torchvision.datasets.ImageFolder
+
+For custom datasets with folder-based organization:
+
+```python
+from torchvision.datasets import ImageFolder
+
+class CustomDataModule(ClassificationDataModule):
+    NUM_CLASSES: int = 100
+    
+    def setup(self, stage: str) -> None:
+        data_root = "/path/to/your/data"
+        
+        if stage == "fit":
+            self.train_dataset = ImageFolder(
+                root=os.path.join(data_root, "train"),
+                transform=self.config["train_transform"],
+            )
+        
+        self.eval_dataset = ImageFolder(
+            root=os.path.join(data_root, "val"),
+            transform=self.config["test_transform"],
+        )
+```
+
+Expected directory structure:
+
+```
+/path/to/your/data/
+├── train/
+│   ├── class1/
+│   │   ├── img1.jpg
+│   │   └── img2.jpg
+│   └── class2/
+│       └── img3.jpg
+└── val/
+    ├── class1/
+    └── class2/
+```
+
+### Step 3: Create Experiment Configs
+
+Add configs in `bcos/experiments/MyDataset/`:
+
+```bash
+mkdir -p bcos/experiments/MyDataset/my_configs
+# Create experiment_parameters.py and model.py
+```
+
+### Step 4: Train
+
+```bash
+python train.py \
+    --dataset MyDataset \
+    --base_network my_configs \
+    --experiment_name my_experiment
+```
+
+## Data Loading Performance
+
+Optimize data loading with these tips:
+
+### Adjust Number of Workers
+
+```python
+"data": {
+    "num_workers": 16,  # Increase for faster CPUs
+}
+```
+
+Rule of thumb: `num_workers = 4 * num_gpus`
+
+### Pin Memory
+
+Automatically enabled in dataloaders:
+
+```python bcos/data/datamodules.py
+def train_dataloader(self):
+    return data.DataLoader(
+        ...,
+        pin_memory=True,  # Faster GPU transfer
+    )
+```
+
+### Persistent Workers (PyTorch Lightning)
+
+Add to trainer config:
+
+```python
+"trainer": {
+    "max_epochs": 90,
+}
+```
+
+PyTorch Lightning handles persistent workers automatically when beneficial.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="CIFAR-10 download fails">
+    If automatic download fails:
+    
+    ```python
+    from torchvision.datasets import CIFAR10
+    CIFAR10(root="/path/to/data", train=True, download=True)
+    ```
+    
+    Or download manually from [CIFAR-10 website](https://www.cs.toronto.edu/~kriz/cifar.html).
+  </Accordion>
+
+  <Accordion title="ImageNet assertion error">
+    If you see "AssertionError: len(dataset) != NUM_TRAIN_EXAMPLES":
+    
+    - Verify all 1,000 class folders exist in `train/` and `val/`
+    - Check for corrupted or missing images
+    - Ensure correct ImageNet version (ILSVRC2012)
+  </Accordion>
+
+  <Accordion title="Out of memory during data loading">
+    Reduce `num_workers` or `batch_size`:
+    
+    ```python
+    "data": {
+        "batch_size": 32,  # Reduce from 64
+        "num_workers": 8,   # Reduce from 16
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Slow data loading">
+    - Increase `num_workers`
+    - Consider dataset caching options
+    - Check disk I/O speed
+    - Use SSD instead of HDD for ImageNet
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/training/configuration">
+    Configure training experiments
+  </Card>
+  <Card title="Distributed Training" icon="server" href="/training/distributed-training">
+    Scale to multiple GPUs and nodes
+  </Card>
+</CardGroup>

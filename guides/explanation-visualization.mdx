@@ -1,0 +1,396 @@
+---
+title: Explanation & Visualization
+description: Generate and visualize interpretable explanations from B-cos models
+---
+
+B-cos Networks are inherently interpretable, providing pixel-level explanations for their predictions. This guide shows you how to generate and visualize these explanations.
+
+## Quick Start
+
+Generate an explanation in just a few lines:
+
+```python
+import torch
+from PIL import Image
+import matplotlib.pyplot as plt
+
+# Load model and image
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+model.eval()
+
+img = model.transform(Image.open('image.jpg'))
+img = img.unsqueeze(0).requires_grad_()
+
+# Generate explanation
+expl_out = model.explain(img)
+
+# Visualize
+plt.imshow(expl_out["explanation"])
+plt.title(f"Predicted class: {expl_out['prediction']}")
+plt.axis('off')
+plt.show()
+```
+
+<Note>
+The input tensor **must** have `requires_grad=True` for explanations to work. This enables gradient computation needed for the explanation.
+</Note>
+
+## The explain() Method
+
+The `explain()` method is the main interface for generating explanations:
+
+### Basic Usage
+
+```python
+# img must be a 4D tensor with batch size 1 and requires_grad=True
+img = model.transform(Image.open('cat.jpg')).unsqueeze(0).requires_grad_()
+
+expl_out = model.explain(img)
+```
+
+### Return Dictionary
+
+The `explain()` method returns a dictionary with:
+
+```python
+{
+    "prediction": int,                    # Predicted class index
+    "explained_class_idx": int,           # Class that was explained (same as prediction by default)
+    "dynamic_linear_weights": Tensor,     # Input gradients (shape: [1, 6, H, W])
+    "contribution_map": Tensor,           # Spatial contribution map (shape: [1, H, W])
+    "explanation": np.ndarray             # RGBA visualization (shape: [H, W, 4])
+}
+```
+
+<Accordion title="Understanding Each Output">
+- **prediction**: The class index with the highest logit value
+- **explained_class_idx**: Which class the explanation is for (useful when explaining non-predicted classes)
+- **dynamic_linear_weights**: The gradients w.r.t. input, representing the dynamic linear mapping
+- **contribution_map**: Spatial map showing which regions contribute to the prediction
+- **explanation**: RGB+Alpha visualization highlighting important input features
+</Accordion>
+
+## Explaining Specific Classes
+
+By default, `explain()` explains the predicted class. To explain a different class:
+
+```python
+# Explain class 243 (bull mastiff) regardless of prediction
+expl_out = model.explain(img, idx=243)
+
+print(f"Predicted: {expl_out['prediction']}")
+print(f"Explained: {expl_out['explained_class_idx']}")
+```
+
+This is useful for:
+- Understanding why a class wasn't predicted
+- Comparing explanations across different classes
+- Debugging model behavior
+
+## Visualization Options
+
+### Basic Explanation Visualization
+
+```python
+import matplotlib.pyplot as plt
+
+expl_out = model.explain(img)
+
+plt.figure(figsize=(8, 8))
+plt.imshow(expl_out["explanation"])
+plt.title(f"Class {expl_out['prediction']}")
+plt.axis('off')
+plt.show()
+```
+
+### Side-by-Side Comparison
+
+```python
+fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+
+# Original image
+original = Image.open('image.jpg')
+axes[0].imshow(original)
+axes[0].set_title('Original Image')
+axes[0].axis('off')
+
+# Explanation
+axes[1].imshow(expl_out["explanation"])
+axes[1].set_title(f'Explanation (Class {expl_out["prediction"]})')
+axes[1].axis('off')
+
+plt.tight_layout()
+plt.show()
+```
+
+## Contribution Maps
+
+Contribution maps show which spatial locations matter most:
+
+```python
+import matplotlib.pyplot as plt
+
+expl_out = model.explain(img)
+
+# Plot contribution map using the built-in method
+ax, im = model.plot_contribution_map(
+    expl_out["contribution_map"][0],  # Remove batch dimension
+    cmap='bwr',                        # Blue-white-red colormap
+    percentile=99.5                    # Clip extreme values
+)
+
+plt.colorbar(im, ax=ax)
+plt.title('Contribution Map')
+plt.show()
+```
+
+### Customizing Contribution Maps
+
+The `plot_contribution_map` method accepts several parameters:
+
+```python
+ax, im = model.plot_contribution_map(
+    contribution_map,
+    ax=None,              # Matplotlib axis (creates new figure if None)
+    vrange=None,          # Color scale range (auto if None)
+    vmin=None,            # Override minimum value
+    vmax=None,            # Override maximum value
+    hide_ticks=True,      # Hide axis ticks
+    cmap='bwr',           # Colormap
+    percentile=99.5       # Percentile for clipping outliers
+)
+```
+
+<CodeGroup>
+```python Default
+ax, im = model.plot_contribution_map(
+    contribution_map[0]
+)
+```
+
+```python Custom Range
+ax, im = model.plot_contribution_map(
+    contribution_map[0],
+    vrange=1.0,  # Force range [-1, 1]
+    cmap='RdBu'  # Red-blue colormap
+)
+```
+
+```python Custom Axis
+fig, ax = plt.subplots()
+ax, im = model.plot_contribution_map(
+    contribution_map[0],
+    ax=ax,
+    hide_ticks=False
+)
+```
+</CodeGroup>
+
+## Customizing Explanations
+
+The `gradient_to_image` function converts gradients to visualizations:
+
+```python
+from bcos.common import gradient_to_image
+
+expl_out = model.explain(
+    img,
+    smooth=15,              # Smoothing kernel size (default: 15)
+    alpha_percentile=99.5   # Alpha channel clipping (default: 99.5)
+)
+```
+
+### Parameters
+
+- **smooth**: Kernel size for smoothing alpha channel. Larger = smoother. Use `1` for no smoothing.
+- **alpha_percentile**: Percentile for alpha channel clipping (0-100). Higher = more transparent.
+
+<CodeGroup>
+```python Default Smoothing
+expl = model.explain(img, smooth=15)
+```
+
+```python No Smoothing
+expl = model.explain(img, smooth=1)
+```
+
+```python Heavy Smoothing
+expl = model.explain(img, smooth=31)
+```
+
+```python Adjust Transparency
+expl = model.explain(
+    img, 
+    alpha_percentile=95  # More opaque
+)
+```
+</CodeGroup>
+
+## Explanation Mode
+
+For advanced use cases, use the `explanation_mode` context manager:
+
+```python
+import torch
+
+model.eval()
+img = img.requires_grad_()
+
+with model.explanation_mode():
+    # Forward pass in explanation mode
+    output = model(img)
+    
+    # Get prediction
+    pred_idx = output.argmax(dim=1).item()
+    
+    # Backward pass
+    output[0, pred_idx].backward()
+    
+    # Access gradients
+    linear_weights = img.grad
+    contribution_map = (img * img.grad).sum(dim=1)
+```
+
+<Note>
+Explanation mode modifies how certain modules behave (e.g., detaching weights). The `.explain()` method uses this internally, but you can use it directly for more control.
+</Note>
+
+## Complete Example: Multi-Class Comparison
+
+Compare explanations for multiple classes:
+
+```python
+import torch
+from PIL import Image
+import matplotlib.pyplot as plt
+
+# Load model and image
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+model.eval()
+
+img = model.transform(Image.open('dog.jpg')).unsqueeze(0)
+img = img.requires_grad_()
+
+# Get top 3 predictions
+with torch.no_grad():
+    logits = model(img)
+    top3_indices = logits[0].argsort(descending=True)[:3].tolist()
+
+# Explain each
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+for idx, class_idx in enumerate(top3_indices):
+    expl_out = model.explain(img, idx=class_idx)
+    
+    axes[idx].imshow(expl_out["explanation"])
+    axes[idx].set_title(f'Class {class_idx}\n(Pred: {expl_out["prediction"]})')
+    axes[idx].axis('off')
+
+plt.tight_layout()
+plt.show()
+```
+
+## Batch Processing
+
+Process multiple images:
+
+```python
+import torch
+from pathlib import Path
+import matplotlib.pyplot as plt
+
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+model.eval()
+
+image_paths = list(Path('images/').glob('*.jpg'))[:4]
+
+fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+
+for idx, img_path in enumerate(image_paths):
+    # Load and process single image
+    img = model.transform(Image.open(img_path))
+    img = img.unsqueeze(0).requires_grad_()
+    
+    # Generate explanation
+    expl_out = model.explain(img)
+    
+    # Plot original and explanation
+    axes[0, idx].imshow(Image.open(img_path))
+    axes[0, idx].set_title(f'Original {idx+1}')
+    axes[0, idx].axis('off')
+    
+    axes[1, idx].imshow(expl_out["explanation"])
+    axes[1, idx].set_title(f'Class {expl_out["prediction"]}')
+    axes[1, idx].axis('off')
+
+plt.tight_layout()
+plt.show()
+```
+
+<Warning>
+The `.explain()` method requires batch size of 1. Process images one at a time in a loop for multiple images.
+</Warning>
+
+## Saving Explanations
+
+Save explanations to files:
+
+```python
+import matplotlib.pyplot as plt
+from PIL import Image
+import numpy as np
+
+expl_out = model.explain(img)
+
+# Save as PNG with matplotlib
+plt.figure(figsize=(8, 8))
+plt.imshow(expl_out["explanation"])
+plt.axis('off')
+plt.savefig('explanation.png', bbox_inches='tight', dpi=150)
+plt.close()
+
+# Or save directly as image (loses alpha channel)
+expl_rgb = (expl_out["explanation"][:, :, :3] * 255).astype(np.uint8)
+Image.fromarray(expl_rgb).save('explanation_rgb.jpg')
+
+# Save with alpha channel
+expl_rgba = (expl_out["explanation"] * 255).astype(np.uint8)
+Image.fromarray(expl_rgba, mode='RGBA').save('explanation_rgba.png')
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Always use requires_grad">
+    Set `requires_grad=True` on input tensors for explanations to work
+  </Step>
+  <Step title="Use eval mode">
+    Put model in evaluation mode with `model.eval()` before generating explanations
+  </Step>
+  <Step title="Single images only">
+    The `.explain()` method works with batch size 1 only
+  </Step>
+  <Step title="Clear gradients">
+    If reusing the same tensor, clear gradients: `img.grad = None`
+  </Step>
+  <Step title="Adjust smoothing">
+    Experiment with `smooth` parameter for better visualizations
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Fine-tuning" icon="wrench" href="/guides/fine-tuning">
+    Adapt models to your tasks while preserving interpretability
+  </Card>
+  <Card title="Training" icon="code" href="/training/overview-custom-models">
+    Train custom B-cos models from scratch
+  </Card>
+  <Card title="Model Zoo" icon="grid" href="/model-zoo/overview">
+    Explore all available pretrained models
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference/bcos-common">
+    Detailed API documentation
+  </Card>
+</CardGroup>

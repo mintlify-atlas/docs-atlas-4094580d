@@ -1,0 +1,294 @@
+---
+title: ResNet Models
+description: B-cos ResNet and ResNeXt pretrained models with various depths and training configurations
+---
+
+# ResNet Models
+
+B-cos ResNet models are residual networks adapted for inherently interpretable predictions. These models provide competitive accuracy while maintaining full interpretability through B-cos alignment.
+
+## Available Models
+
+| Model | Acc@1 | Acc@5 | Params | Entrypoint |
+|-------|-------|-------|--------|------------|
+| ResNet-18 | 68.736% | 87.430% | 11.69M | `resnet18` |
+| ResNet-34 | 72.284% | 90.052% | 21.80M | `resnet34` |
+| ResNet-50 | 75.882% | 92.064% | 25.54M | `resnet50` |
+| ResNet-101 | 76.532% | 92.538% | 44.50M | `resnet101` |
+| ResNet-152 | 76.484% | 92.398% | 60.13M | `resnet152` |
+| ResNeXt-50 32x4d | 75.820% | 91.810% | 25.00M | `resnext50_32x4d` |
+| ResNet-50 (long) | 79.468% | 94.452% | 25.54M | `resnet50_long` |
+| ResNet-152 (long) | 80.144% | 94.116% | 60.13M | `resnet152_long` |
+
+## Usage
+
+### Basic Usage
+
+```python
+import torch
+
+# Load pretrained ResNet-50
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+
+# Load without pretrained weights
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=False)
+```
+
+### Inference Example
+
+```python
+from PIL import Image
+
+# Load and preprocess image
+img = Image.open('image.jpg')
+img_tensor = model.transform(img).unsqueeze(0)
+
+# Get prediction
+model.eval()
+with torch.no_grad():
+    output = model(img_tensor)
+    pred = output.argmax(dim=1)
+```
+
+## API Reference
+
+### resnet18
+
+```python
+resnet18(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos ResNet-18 model.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ResNet-18 model
+
+**Metrics:**
+- Acc@1: 68.736%
+- Acc@5: 87.430%
+- Parameters: 11.69M
+
+---
+
+### resnet34
+
+```python
+resnet34(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos ResNet-34 model.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ResNet-34 model
+
+**Metrics:**
+- Acc@1: 72.284%
+- Acc@5: 90.052%
+- Parameters: 21.80M
+
+---
+
+### resnet50
+
+```python
+resnet50(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos ResNet-50 model.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ResNet-50 model
+
+**Metrics:**
+- Acc@1: 75.882%
+- Acc@5: 92.064%
+- Parameters: 25.54M
+
+---
+
+### resnet101
+
+```python
+resnet101(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos ResNet-101 model.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ResNet-101 model
+
+**Metrics:**
+- Acc@1: 76.532%
+- Acc@5: 92.538%
+- Parameters: 44.50M
+
+---
+
+### resnet152
+
+```python
+resnet152(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos ResNet-152 model.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ResNet-152 model
+
+**Metrics:**
+- Acc@1: 76.484%
+- Acc@5: 92.398%
+- Parameters: 60.13M
+
+---
+
+### resnext50_32x4d
+
+```python
+resnext50_32x4d(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos ResNeXt-50 32x4d model.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ResNeXt-50 32x4d model
+
+**Metrics:**
+- Acc@1: 75.820%
+- Acc@5: 91.810%
+- Parameters: 25.00M
+
+---
+
+### resnet50_long
+
+```python
+resnet50_long(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos ResNet-50 trained for 600 epochs with improved training recipe.
+
+The model architecture is the same as `resnet50`. The weights are from epoch 580's non-EMA checkpoint. The model was trained with AMP.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ResNet-50 (long training) model
+
+**Metrics:**
+- Acc@1: 79.468%
+- Acc@5: 94.452%
+- Parameters: 25.54M
+
+---
+
+### resnet152_long
+
+```python
+resnet152_long(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos ResNet-152 trained for 600 epochs with improved training recipe.
+
+The model architecture is the same as `resnet152`. The weights are from epoch 433's non-EMA checkpoint. The model was trained with AMP.
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos ResNet-152 (long training) model
+
+**Metrics:**
+- Acc@1: 80.144%
+- Acc@5: 94.116%
+- Parameters: 60.13M
+
+## References
+
+- [B-cos Networks: Alignment is All We Need for Interpretability](https://arxiv.org/abs/2205.10268)
+- [Deep Residual Learning for Image Recognition](https://arxiv.org/pdf/1512.03385.pdf)
+- [Aggregated Residual Transformations for Deep Neural Networks](https://arxiv.org/pdf/1611.05431.pdf)
+- [TorchVision's new recipe](https://pytorch.org/blog/how-to-train-state-of-the-art-models-using-torchvision-latest-primitives) (for long-trained models)

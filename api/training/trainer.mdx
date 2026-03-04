@@ -1,0 +1,242 @@
+---
+title: ClassificationLitModel
+description: PyTorch Lightning module for training classification models with B-cos networks
+---
+
+## ClassificationLitModel
+
+A PyTorch Lightning module for training image classification models, with built-in support for B-cos networks, EMA (Exponential Moving Average), and adaptive gradient clipping.
+
+### Constructor
+
+```python
+ClassificationLitModel(dataset, base_network, experiment_name)
+```
+
+<ParamField path="dataset" type="str" required>
+  Name of the dataset to use for training (e.g., "ImageNet", "CIFAR10")
+</ParamField>
+
+<ParamField path="base_network" type="str" required>
+  Name of the base network architecture (e.g., "resnet50", "vgg16")
+</ParamField>
+
+<ParamField path="experiment_name" type="str" required>
+  Name of the experiment configuration to load
+</ParamField>
+
+### Attributes
+
+<ParamField path="model" type="torch.nn.Module">
+  The neural network model being trained
+</ParamField>
+
+<ParamField path="config" type="dict">
+  The experiment configuration dictionary
+</ParamField>
+
+<ParamField path="is_bcos" type="bool">
+  Whether the model is a B-cos model (enables explanation logging)
+</ParamField>
+
+<ParamField path="criterion" type="callable">
+  Loss function used for training
+</ParamField>
+
+<ParamField path="test_criterion" type="callable">
+  Loss function used for validation/testing
+</ParamField>
+
+<ParamField path="ema" type="ExponentialMovingAverage | None">
+  Exponential moving average of model parameters (if enabled)
+</ParamField>
+
+<ParamField path="use_agc" type="bool">
+  Whether to use Adaptive Gradient Clipping
+</ParamField>
+
+### Methods
+
+#### setup
+
+```python
+setup(stage: str) -> None
+```
+
+Sets up the module for a specific training stage. Initializes EMA if configured.
+
+<ParamField path="stage" type="str" required>
+  Training stage ("fit", "validate", "test", or "predict")
+</ParamField>
+
+#### configure_optimizers
+
+```python
+configure_optimizers()
+```
+
+Configures the optimizer and learning rate scheduler from the experiment configuration.
+
+**Returns:** Dictionary with `optimizer` and `lr_scheduler` keys.
+
+#### forward
+
+```python
+forward(in_tensor)
+```
+
+Forward pass through the model.
+
+<ParamField path="in_tensor" type="torch.Tensor" required>
+  Input tensor (typically images)
+</ParamField>
+
+**Returns:** Model output logits.
+
+#### training_step
+
+```python
+training_step(batch, batch_idx)
+```
+
+Performs a single training step.
+
+<ParamField path="batch" type="tuple" required>
+  Tuple of (images, labels)
+</ParamField>
+
+<ParamField path="batch_idx" type="int" required>
+  Index of the current batch
+</ParamField>
+
+**Returns:** Training loss value.
+
+#### validation_step
+
+```python
+validation_step(batch, batch_idx)
+```
+
+Performs a single validation step.
+
+<ParamField path="batch" type="tuple" required>
+  Tuple of (images, labels)
+</ParamField>
+
+<ParamField path="batch_idx" type="int" required>
+  Index of the current batch
+</ParamField>
+
+**Returns:** Validation loss value (or dict with loss and loss_ema if EMA is enabled).
+
+#### test_step
+
+```python
+test_step(batch, batch_idx)
+```
+
+Performs a single test step.
+
+<ParamField path="batch" type="tuple" required>
+  Tuple of (images, labels)
+</ParamField>
+
+<ParamField path="batch_idx" type="int" required>
+  Index of the current batch
+</ParamField>
+
+**Returns:** Test loss value (or dict with loss and loss_ema if EMA is enabled).
+
+#### configure_gradient_clipping
+
+```python
+configure_gradient_clipping(
+    optimizer,
+    optimizer_idx,
+    gradient_clip_val=None,
+    gradient_clip_algorithm=None
+) -> None
+```
+
+Configures gradient clipping. Uses adaptive gradient clipping if `use_agc` is enabled.
+
+### Features
+
+- **Top-k Accuracy Tracking**: Automatically tracks top-1 and top-5 accuracy for both training and evaluation
+- **EMA Support**: Optional exponential moving average of model parameters with automatic warmup handling
+- **Adaptive Gradient Clipping**: Optional AGC for stable training
+- **Mixed Precision**: Compatible with PyTorch Lightning's automatic mixed precision
+- **B-cos Integration**: Special handling for B-cos models including explanation logging
+
+### Example Usage
+
+```python
+from bcos.training.trainer import ClassificationLitModel
+import pytorch_lightning as pl
+
+# Create the model
+model = ClassificationLitModel(
+    dataset="ImageNet",
+    base_network="resnet50",
+    experiment_name="bcos_final"
+)
+
+# Create trainer
+trainer = pl.Trainer(
+    max_epochs=100,
+    accelerator="gpu",
+    devices=1
+)
+
+# Get datamodule from experiment
+datamodule = model.experiment.get_datamodule()
+
+# Train
+trainer.fit(model, datamodule=datamodule)
+```
+
+### Related Functions
+
+#### run_training
+
+```python
+run_training(args)
+```
+
+Convenience function that instantiates everything and runs the training process.
+
+<ParamField path="args" type="argparse.Namespace" required>
+  Command-line arguments containing:
+  - `base_directory`: Directory for saving checkpoints and logs
+  - `dataset`: Dataset name
+  - `base_network`: Network architecture name
+  - `experiment_name`: Experiment configuration name
+  - `distributed`: Whether to use distributed training
+  - `wandb_logger`, `csv_logger`, `tensorboard_logger`: Logger flags
+  - `explanation_logging`: Whether to log explanations
+  - Additional training configuration options
+</ParamField>
+
+**Example:**
+
+```python
+from bcos.training.trainer import run_training
+import argparse
+
+args = argparse.Namespace(
+    base_directory="./experiments",
+    dataset="CIFAR10",
+    base_network="resnet18",
+    experiment_name="baseline",
+    distributed=False,
+    wandb_logger=True,
+    csv_logger=False,
+    tensorboard_logger=False,
+    explanation_logging=True,
+    explanation_logging_every_n_epochs=10,
+    resume=False,
+    # ... other args
+)
+
+run_training(args)
+```

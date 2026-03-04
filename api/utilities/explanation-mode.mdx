@@ -1,0 +1,109 @@
+---
+title: explanation_mode
+description: Context manager for activating explanation mode in B-cos models
+---
+
+## Overview
+
+The `explanation_mode` context manager activates explanation mode for B-cos models, enabling the generation of interpretable explanations. It automatically finds all modules with a `set_explanation_mode` method and toggles their explanation mode on entry and off on exit.
+
+This context manager can also be used as a decorator.
+
+## Signature
+
+```python
+class explanation_mode(model: nn.Module)
+```
+
+## Parameters
+
+<ParamField path="model" type="nn.Module" required>
+  The B-cos model to put in explanation mode. The context manager will search for all submodules that have a `set_explanation_mode` method and activate explanation mode for them.
+</ParamField>
+
+## Usage
+
+### As a Context Manager
+
+```python
+import torch
+import bcos
+
+# Load a pretrained B-cos model
+model = bcos.models.resnet18(pretrained=True)
+model.eval()
+
+# Prepare input
+input_tensor = torch.randn(1, 6, 224, 224, requires_grad=True)
+
+# Use explanation_mode context manager
+with bcos.explanation_mode(model):
+    output = model(input_tensor)
+    pred_class = output.max(1).indices.item()
+    
+    # Compute gradients for explanation
+    output[0, pred_class].backward()
+    
+    # Generate contribution map
+    contribution_map = (input_tensor * input_tensor.grad).sum(1)
+```
+
+### As a Decorator
+
+```python
+import bcos
+
+model = bcos.models.resnet18(pretrained=True)
+
+@bcos.explanation_mode(model)
+def generate_explanation(input_tensor):
+    output = model(input_tensor)
+    # Model is in explanation mode within this function
+    return output
+```
+
+### With BcosUtilMixin
+
+Models that inherit from `BcosUtilMixin` have a built-in `explanation_mode()` method:
+
+```python
+from bcos.common import BcosUtilMixin
+import torch.nn as nn
+
+class MyModel(BcosUtilMixin, nn.Module):
+    def __init__(self):
+        super().__init__()
+        # ... define layers
+    
+    def forward(self, x):
+        # ... forward pass
+        return x
+
+model = MyModel()
+input_tensor = torch.randn(1, 6, 32, 32, requires_grad=True)
+
+# Use the built-in explanation_mode context manager
+with model.explanation_mode():
+    output = model(input_tensor)
+    output.max().backward()
+```
+
+## How It Works
+
+1. **On Entry (`__enter__`)**: The context manager finds all modules in the model that have a `set_explanation_mode` method and calls `set_explanation_mode(True)` on each.
+
+2. **During Context**: The model operates in explanation mode, which typically means detaching certain operations or modifying forward passes to enable gradient-based explanations.
+
+3. **On Exit (`__exit__`)**: The context manager calls `set_explanation_mode(False)` on all previously identified modules, returning them to normal operation mode.
+
+## Notes
+
+- The context manager caches the list of modules with `set_explanation_mode` after the first search for efficiency.
+- Explanation mode is essential for generating B-cos explanations as it modifies how certain layers (like BcosConv2d) compute their outputs.
+- Always use this context manager when generating explanations to ensure correct behavior.
+
+## See Also
+
+- [BcosUtilMixin](/api/utilities/common#bcosutilmixin) - Mixin class that provides explanation utilities
+- [gradient_to_image](/api/utilities/visualization#gradient_to_image) - Convert gradients to visual explanations
+- [plot_contribution_map](/api/utilities/visualization#plot_contribution_map) - Visualize contribution maps

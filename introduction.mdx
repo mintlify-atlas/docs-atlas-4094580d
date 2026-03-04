@@ -1,0 +1,129 @@
+---
+title: Introduction to B-cos Networks
+description: Learn about B-cos Networks, inherently interpretable CNNs and Vision Transformers that provide explanations for their predictions
+---
+
+## What are B-cos Networks?
+
+B-cos Networks are a family of inherently interpretable deep learning models for computer vision. Unlike traditional neural networks that require post-hoc explanation methods, B-cos models are designed from the ground up to be explainable, providing transparent insights into their decision-making process.
+
+These models achieve state-of-the-art accuracy on ImageNet while being able to generate visual explanations that highlight which parts of the input image contributed to the prediction.
+
+<Note>
+  B-cos v2 models are more efficient and easier to train than the original v1 models, with a large number of pretrained models available for immediate use.
+</Note>
+
+## Key Features
+
+### Inherent Interpretability
+
+B-cos Networks use B-cos alignment principles to create models where explanations are built into the architecture itself. Each model has a `.explain()` method that generates visual explanations showing:
+- Which regions of the image influenced the prediction
+- How different color channels contributed to the decision
+- Contribution maps for spatial locations
+
+### Wide Model Zoo
+
+The library provides pretrained models across multiple architectures:
+- **ResNets**: ResNet-18, 34, 50, 101, 152, ResNeXt-50
+- **DenseNets**: DenseNet-121, 161, 169, 201
+- **ConvNeXt**: Tiny and Base variants
+- **Vision Transformers**: Simple ViT and ViT-C in various sizes (Tiny, Small, Base, Large)
+- **VGG**: VGG-11
+
+All models are pretrained on ImageNet and ready for inference or fine-tuning.
+
+### Easy Integration
+
+Models can be loaded directly via `torch.hub` with no additional dependencies:
+
+```python
+import torch
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+```
+
+Each model comes with:
+- An inference transform (`model.transform`)
+- An `.explain()` method for generating visual explanations
+- Methods to access the classifier and feature extractor for fine-tuning
+
+## When to Use B-cos Networks
+
+### Ideal Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Medical Imaging" icon="heart-pulse">
+    When you need to understand which image regions led to a diagnosis or classification
+  </Card>
+  
+  <Card title="Safety-Critical Applications" icon="shield-check">
+    When model decisions need to be auditable and transparent for regulatory compliance
+  </Card>
+  
+  <Card title="Research & Development" icon="flask">
+    When analyzing model behavior and understanding what features the model learns
+  </Card>
+  
+  <Card title="Quality Control" icon="magnifying-glass">
+    When detecting defects or anomalies where explanations help identify issues
+  </Card>
+</CardGroup>
+
+### Advantages over Post-hoc Methods
+
+1. **No Additional Computation**: Explanations are generated through a single forward pass with gradients, unlike methods like LIME or RISE that require multiple evaluations
+2. **Consistent Explanations**: Built into the model architecture, not dependent on external explanation algorithms
+3. **Fine-grained**: Pixel-level explanations that preserve spatial resolution
+4. **Fast**: Real-time explanation generation suitable for interactive applications
+
+## Architecture Highlights
+
+B-cos Networks replace standard layers with B-cos equivalents:
+
+- **BcosConv2d**: Dynamic linear convolution layers with normalized weights
+- **BatchNorm2dUncentered**: Uncentered batch normalization without bias
+- **Explanation Mode**: Special forward pass mode that enables gradient-based explanations
+
+These components work together to ensure that the gradient with respect to the input provides meaningful explanations.
+
+<Warning>
+  B-cos models expect 6-channel input (RGB + inverse RGB channels). The `model.transform` handles this automatically when preprocessing images.
+</Warning>
+
+## Performance
+
+B-cos Networks achieve competitive accuracy on ImageNet:
+
+| Model | Top-1 Accuracy | Parameters |
+|-------|----------------|------------|
+| ResNet-50 | 75.9% | 25.5M |
+| ResNet-152 (long) | 80.1% | 60.1M |
+| ConvNeXt-Base (BNU) | 80.1% | 88.5M |
+| ViT-C-B | 77.2% | 81.4M |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running with B-cos Networks in minutes
+  </Card>
+  
+  <Card title="Installation" icon="download" href="/installation">
+    Set up your development environment
+  </Card>
+</CardGroup>
+
+## Citation
+
+If you use B-cos Networks in your research, please cite:
+
+```bibtex
+@article{Boehle2024TPAMI,
+  author={Böhle, Moritz and Singh, Navdeeppal and Fritz, Mario and Schiele, Bernt},
+  title = {B-cos Alignment for Inherently Interpretable CNNs and Vision Transformers},
+  journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  year = {2024},
+  pages = {1-15},
+  doi = {10.1109/TPAMI.2024.3355155},
+}
+```

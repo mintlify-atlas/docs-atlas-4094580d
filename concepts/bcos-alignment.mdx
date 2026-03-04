@@ -1,0 +1,253 @@
+---
+title: B-cos Alignment
+description: Understanding B-cos transforms and weight-input alignment for inherently interpretable neural networks
+---
+
+# B-cos Alignment
+
+B-cos (pronounced "B-cosine") alignment is the core principle behind B-cos Networks that enables inherent interpretability without sacrificing performance. It transforms neural networks into dynamic linear models by aligning the weights with input features through cosine similarity.
+
+## Mathematical Foundation
+
+At the heart of B-cos alignment is a simple but powerful transformation. Instead of the standard linear operation followed by a nonlinear activation:
+
+```
+Standard: f(Wx + b)
+```
+
+B-cos uses a **cosine similarity-based computation**:
+
+```
+B-cos: |cos(x, ŵ)|^(B-1) · (x · ŵ)
+```
+
+Where:
+- `ŵ` is the **unit-normalized weight vector** (‖ŵ‖ = 1)
+- `x` is the input vector
+- `cos(x, ŵ) = (x · ŵ) / ‖x‖` is the cosine similarity
+- `B ≥ 1` is a hyperparameter (typically B=2)
+
+### Breaking Down the Transform
+
+The B-cos transform consists of three key components:
+
+1. **Weight Normalization**: Weights are normalized to unit vectors
+   ```python
+   ŵ = w / ‖w‖
+   ```
+
+2. **Linear Transform with Normalized Weights**: Compute the dot product
+   ```python
+   linear_out = x · ŵ = ‖x‖ · cos(x, ŵ)
+   ```
+
+3. **Dynamic Scaling**: Apply the B-cos scaling factor
+   ```python
+   output = |cos(x, ŵ)|^(B-1) · (x · ŵ)
+   ```
+
+## Why Cosine Similarity?
+
+Cosine similarity measures the **alignment** between two vectors regardless of their magnitude. This has profound implications:
+
+### Weight-Input Alignment
+
+When `cos(x, ŵ) = 1`, the input is **perfectly aligned** with the weight vector, producing maximum activation. When `cos(x, ŵ) = 0`, they are orthogonal, producing zero activation.
+
+This creates a clear geometric interpretation:
+- **Weights represent directions in feature space**
+- **Inputs are projected onto these directions**
+- **Activations measure alignment strength**
+
+### The Role of B
+
+The hyperparameter B controls the nonlinearity:
+
+- **B = 1**: Pure linear operation (no additional scaling)
+- **B = 2**: Standard B-cos (recommended)
+  ```python
+  dynamic_scale = |cos(x, ŵ)| = |x · ŵ| / ‖x‖
+  output = (|x · ŵ| / ‖x‖) · (x · ŵ)
+  ```
+- **B > 2**: Stronger nonlinearity
+
+For B=2 (the most common case), the scaling factor simplifies to `|x · ŵ| / ‖x‖`, making the computation efficient.
+
+## Implementation Details
+
+### Convolutional Layers
+
+For `BcosConv2d`, the transform is applied to each spatial patch:
+
+```python
+# 1. Normalize weights
+ŵ = weight / ‖weight‖
+
+# 2. Compute linear convolution
+linear_out = conv2d(input, ŵ)
+
+# 3. Calculate patch norms ‖x‖ for each spatial location
+patch_norms = sqrt(avg_pool2d(input^2, kernel_size) * patch_size)
+
+# 4. Apply dynamic scaling
+if B == 2:
+    dynamic_scale = |linear_out| / patch_norms
+else:
+    dynamic_scale = |linear_out / patch_norms|^(B-1)
+
+output = dynamic_scale * linear_out
+```
+
+Key implementation details from `bcos/modules/bcosconv2d.py:138-179`:
+- Patch norms are efficiently computed using average pooling
+- A small epsilon (1e-6) prevents division by zero
+- The operation maintains spatial structure
+
+### Linear Layers
+
+For `BcosLinear`, the process is simpler since we work with vectors:
+
+```python
+# 1. Normalize weights
+ŵ = weight / ‖weight‖
+
+# 2. Linear transform
+linear_out = input @ ŵ.T
+
+# 3. Input norm
+norm = ‖input‖ + 1e-12
+
+# 4. Dynamic scaling
+if B == 2:
+    dynamic_scale = |linear_out| / norm
+else:
+    dynamic_scale = |linear_out / norm|^(B-1)
+
+output = dynamic_scale * linear_out
+```
+
+See `bcos/modules/bcoslinear.py:86-128` for the full implementation.
+
+## Input Preprocessing: The AddInverse Transform
+
+B-cos Networks use a special preprocessing step to handle both positive and negative evidence:
+
+```python
+class AddInverse:
+    def forward(self, input):
+        # For RGB input [B, 3, H, W], create [B, 6, H, W]
+        return torch.cat([input, 1 - input], dim=1)
+```
+
+This doubles the input channels:
+- **Original channels (R, G, B)**: Represent presence of features
+- **Inverse channels (1-R, 1-G, 1-B)**: Represent absence of features
+
+Why is this necessary?
+
+1. **Cosine similarity is symmetric**: `cos(x, w) = cos(-x, -w)`
+2. **We need to distinguish presence from absence**: Is "no red" different from "green"?
+3. **The inverse channels provide this distinction**: The network can learn separate weights for presence and absence
+
+See `bcos/data/transforms.py:10-23` for the implementation.
+
+## Theoretical Properties
+
+### Dynamic Linear Model
+
+During inference in explanation mode, B-cos Networks become **truly linear** with respect to the input:
+
+```python
+with model.explanation_mode():
+    # Dynamic weights are detached
+    output = linear_transform(input, dynamic_weights)
+```
+
+The dynamic weights are:
+```python
+dynamic_weights = |cos(x, ŵ)|^(B-1) · ŵ
+```
+
+This means:
+- **The output is a weighted sum of input features**
+- **Gradients directly indicate feature importance**
+- **No post-hoc attribution is needed**
+
+### Alignment Guarantees
+
+The B-cos transform ensures:
+
+1. **Sign Consistency**: The output has the same sign as the dot product `x · ŵ`
+2. **Magnitude Scaling**: Larger inputs (higher ‖x‖) don't automatically produce larger outputs
+3. **Directional Sensitivity**: The network learns to align weights with relevant input patterns
+
+## Practical Implications
+
+### Training Dynamics
+
+B-cos alignment changes how networks learn:
+
+1. **Weights learn directions, not magnitudes**: All weights are unit vectors
+2. **No bias terms**: Biases would break the linearity property
+3. **Special normalization required**: Standard BatchNorm centers data, which breaks alignment (see [Architecture](/concepts/architecture))
+
+### Comparison with Standard Networks
+
+| Aspect | Standard Network | B-cos Network |
+|--------|-----------------|---------------|
+| Weight semantics | Arbitrary scale | Unit vectors (directions) |
+| Activation basis | Magnitude-dependent | Alignment-based |
+| Interpretability | Requires post-hoc methods | Inherent via gradients |
+| Nonlinearity | Explicit (ReLU, etc.) | Implicit (dynamic scaling) |
+| Bias terms | Used | Not used |
+
+## Example: Understanding Alignment
+
+Consider a simple 1D example with B=2:
+
+```python
+import torch
+from bcos.modules import BcosLinear
+
+# Create a B-cos linear layer
+layer = BcosLinear(in_features=2, out_features=1, b=2)
+
+# Assume weight learns to point in direction [0.6, 0.8]
+# After normalization: ŵ = [0.6, 0.8] / 1.0 = [0.6, 0.8]
+
+# Input perfectly aligned with weight
+x1 = torch.tensor([[3.0, 4.0]])  # ‖x1‖ = 5, direction = [0.6, 0.8]
+# cos(x1, ŵ) = 1, output ∝ x1 · ŵ = 5
+
+# Input orthogonal to weight
+x2 = torch.tensor([[4.0, -3.0]])  # ‖x2‖ = 5, direction = [0.8, -0.6]
+# cos(x2, ŵ) = 0, output ≈ 0
+
+# Input opposite to weight
+x3 = torch.tensor([[-3.0, -4.0]])  # ‖x3‖ = 5, direction = [-0.6, -0.8]
+# cos(x3, ŵ) = -1, output ∝ -(x3 · ŵ) = -5
+```
+
+This alignment-based computation is what makes B-cos interpretable: **the network explicitly learns which directions in feature space matter**.
+
+## MaxOut Extension
+
+B-cos layers support an optional MaxOut mechanism:
+
+```python
+BcosConv2d(in_channels=3, out_channels=64, max_out=2)
+```
+
+This:
+1. Creates 2× as many internal features (128)
+2. Takes the maximum over pairs: `output = max(features[::2], features[1::2])`
+3. Increases expressiveness while maintaining interpretability
+
+See the implementation in `bcos/modules/bcosconv2d.py:150-155` and `bcoslinear.py:99-104`.
+
+## Further Reading
+
+- **Paper**: [B-cos Alignment for Inherently Interpretable CNNs and Vision Transformers](https://arxiv.org/abs/2306.10898)
+- **DOI**: [10.1109/TPAMI.2024.3355155](https://doi.org/10.1109/TPAMI.2024.3355155)
+- Learn how this enables interpretability in [Interpretability](/concepts/interpretability)
+- See architectural implications in [Architecture](/concepts/architecture)

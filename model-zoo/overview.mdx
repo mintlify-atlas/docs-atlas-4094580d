@@ -1,0 +1,149 @@
+---
+title: Model Zoo Overview
+description: Explore the B-cos Networks pretrained model collection with CNNs and Vision Transformers for inherently interpretable computer vision.
+---
+
+# Model Zoo Overview
+
+The B-cos Networks Model Zoo provides a comprehensive collection of pretrained models for computer vision tasks. All models are trained on ImageNet and offer inherent interpretability through B-cos alignment, making them ideal for applications where model transparency is crucial.
+
+## What is B-cos?
+
+B-cos (B-cosine) Networks are designed for inherent interpretability. Unlike standard neural networks, B-cos models align their internal representations with human-interpretable concepts, enabling direct visualization of decision-making processes without requiring post-hoc explanation methods.
+
+## Model Categories
+
+Our model zoo includes two main categories:
+
+### Convolutional Neural Networks (CNNs)
+
+- **ResNet Family**: Classic residual networks (ResNet-18 through ResNet-152, ResNeXt)
+- **DenseNet Family**: Densely connected networks (DenseNet-121, 161, 169, 201)
+- **ConvNeXt**: Modern ConvNet architectures (Tiny, Base variants)
+- **VGG**: VGG-11 with batch normalization
+
+### Vision Transformers (ViTs)
+
+- **Simple ViT**: Standard patch-based transformers (Ti, S, B, L sizes)
+- **ViT-C**: Vision transformers with convolutional stems for improved performance
+- **Standard ViT**: Non-B-cos baseline models for comparison
+
+## Model Variants
+
+### Standard Training
+
+Most models are trained with the standard training schedule, providing strong baseline performance with inherent interpretability.
+
+### Extended Training ("long" variants)
+
+Select models (ResNet-50, ResNet-152, DenseNet-121, ConvNeXt) have been trained for 600 epochs using advanced training techniques, achieving significantly higher accuracy:
+
+- Uses Exponential Moving Average (EMA) checkpoints
+- Trained with Automatic Mixed Precision (AMP)
+- Follows TorchVision's modern training recipes
+
+### Normalization Variants
+
+- **Standard**: Height-Width (HW) normalization
+- **BNU**: Batch Normalization without centering for specific use cases
+
+## How to Choose a Model
+
+### By Model Size
+
+**Small Models (< 10M parameters)**
+- DenseNet-121: 7.95M params, 73.6% accuracy
+- Simple ViT-Ti: 5.80M params, 60.0% accuracy
+- ViT-C Ti: 5.32M params, 67.3% accuracy
+
+**Medium Models (10M - 50M parameters)**
+- ResNet-50: 25.52M params, 75.9% accuracy
+- DenseNet-161: 28.58M params, 76.6% accuracy
+- ConvNeXt-Tiny: 28.54M params, 77.5% accuracy
+
+**Large Models (> 50M parameters)**
+- ConvNeXt-Base: 88.47M params, 79.7% accuracy
+- ResNet-152: 60.13M params, 76.5% accuracy
+- ViT-C Large: 167.44M params, 77.8% accuracy
+
+### By Accuracy
+
+**High Accuracy (> 79%)**
+- convnext_base_bnu: 80.14%
+- resnet152_long: 80.14%
+- convnext_base: 79.65%
+- resnet50_long: 79.47%
+
+**Good Accuracy (75-79%)**
+- Most ConvNeXt, larger ResNet, DenseNet-161, and ViT-C models
+
+**Baseline Accuracy (< 75%)**
+- Smaller models suitable for resource-constrained environments
+
+### By Architecture Type
+
+**Choose CNNs when:**
+- You need faster inference on edge devices
+- Working with smaller input resolutions
+- Fine-tuning for downstream tasks with limited data
+- Require spatial inductive biases
+
+**Choose ViTs when:**
+- Working with high-resolution images
+- Need attention-based interpretability
+- Scaling to very large models
+- Transfer learning to diverse visual domains
+
+## Loading Models
+
+All models can be loaded via `torch.hub`:
+
+```python
+import torch
+
+# List all available models
+torch.hub.list('B-cos/B-cos-v2')
+
+# Load a pretrained model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+```
+
+Each model includes:
+- Pretrained weights from ImageNet
+- Built-in inference transform (`model.transform`)
+- Explanation method (`model.explain()`)
+- Feature extractor access (`model.get_feature_extractor()`)
+- Classifier access (`model.get_classifier()`)
+
+## Usage Example
+
+```python
+from PIL import Image
+import matplotlib.pyplot as plt
+
+# Load model
+model = torch.hub.load('B-cos/B-cos-v2', 'resnet50', pretrained=True)
+model.eval()
+
+# Load and preprocess image
+img = model.transform(Image.open('image.jpg'))
+img = img[None].requires_grad_()
+
+# Get prediction and explanation
+expl_out = model.explain(img)
+print(f"Predicted class: {expl_out['prediction']}")
+plt.imshow(expl_out['explanation'])
+plt.show()
+```
+
+## License and Terms
+
+The pretrained models are trained on ImageNet and are subject to [ImageNet Terms of Access](https://image-net.org/download). The models are intended for non-commercial research use. Please verify you have permission for your specific use case.
+
+The code is licensed under Apache License 2.0.
+
+## Next Steps
+
+- [CNN Models](/model-zoo/cnn-models) - Detailed documentation for CNN architectures
+- [Vision Transformers](/model-zoo/vision-transformers) - Complete ViT model specifications
+- [Performance Benchmarks](/model-zoo/performance-benchmarks) - Comprehensive performance comparisons

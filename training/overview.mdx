@@ -1,0 +1,197 @@
+---
+title: Training Overview
+description: Learn about the B-cos Networks training framework, including PyTorch Lightning integration and overall architecture
+---
+
+The B-cos Networks training system provides a complete framework for training B-cos models on classification tasks. Built on PyTorch Lightning, it offers a robust, scalable solution for both research and production use.
+
+## Framework Architecture
+
+The training framework consists of several key components:
+
+### Core Components
+
+- **Model Definitions**: Located in `bcos/models`, containing B-cos network architectures
+- **Module Definitions**: Located in `bcos/modules`, containing B-cos layers and components
+- **Training Configs**: Organized in `bcos/experiments/<dataset>/<config_collection>/`
+- **Trainer**: Main training logic in `bcos/training/trainer.py`
+- **Data Modules**: Dataset handling in `bcos/data/datamodules.py`
+- **Optimizers**: Optimization utilities in `bcos/optim`
+
+### Entry Scripts
+
+The framework provides two entry points:
+
+1. **`train.py`**: For local training and development
+2. **`run_with_submitit.py`**: For distributed training on SLURM clusters
+
+## PyTorch Lightning Integration
+
+The training system leverages [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) for a clean, scalable training loop.
+
+### ClassificationLitModel
+
+The core training class is `ClassificationLitModel`, a general-purpose `LightningModule` for classification:
+
+```python
+from bcos.training.trainer import ClassificationLitModel
+
+model = ClassificationLitModel(
+    dataset="CIFAR10",
+    base_network="norm_ablations_final",
+    experiment_name="resnet_20_bnu-linear-nomaxout"
+)
+```
+
+This class wraps your model and implements all necessary training methods:
+
+- `training_step()`: Handles forward pass, loss computation, and metrics
+- `validation_step()` / `test_step()`: Evaluation logic
+- `configure_optimizers()`: Sets up optimizer and learning rate scheduler
+- `configure_gradient_clipping()`: Supports Adaptive Gradient Clipping (AGC)
+
+### Key Features
+
+<AccordionGroup>
+  <Accordion title="Automatic Metric Tracking">
+    The framework automatically tracks:
+    - Top-1 and Top-5 accuracy
+    - Training and validation loss
+    - Learning rate
+    - Gradient norms (optional)
+    
+    All metrics are computed efficiently using `torchmetrics`.
+  </Accordion>
+
+  <Accordion title="Exponential Moving Average (EMA)">
+    Optional EMA support for model parameters:
+    
+    ```python
+    config = {
+        "ema": {
+            "decay": 0.9999,
+            "steps": 32
+        }
+    }
+    ```
+    
+    EMA models are evaluated separately, with metrics logged as `*_ema`.
+  </Accordion>
+
+  <Accordion title="Mixed Precision Training">
+    Enable automatic mixed precision with a simple flag:
+    
+    ```bash
+    python train.py --amp \
+        --dataset CIFAR10 \
+        --base_network norm_ablations_final \
+        --experiment_name resnet_20_bnu-linear-nomaxout
+    ```
+  </Accordion>
+
+  <Accordion title="Adaptive Gradient Clipping">
+    AGC helps stabilize training by clipping gradients adaptively:
+    
+    ```python
+    config = {
+        "use_agc": True
+    }
+    ```
+    
+    See `bcos/training/agc.py:adaptive_clip_grad_()` for implementation details.
+  </Accordion>
+</AccordionGroup>
+
+## Training Pipeline
+
+The typical training workflow:
+
+1. **Configuration Loading**: Load experiment config from `bcos/experiments/`
+2. **Seed Setting**: Reproducible training via `pl.seed_everything()`
+3. **Model Initialization**: Create model and wrap in `ClassificationLitModel`
+4. **Data Module Setup**: Initialize dataset-specific `DataModule`
+5. **Trainer Creation**: Configure PyTorch Lightning `Trainer` with callbacks and loggers
+6. **Training**: Run `trainer.fit()` with automatic checkpointing and logging
+
+### Directory Structure
+
+Training runs are organized as:
+
+```
+experiments/
+└── <dataset>/
+    └── <base_network>/
+        └── <experiment_name>/
+            ├── checkpoints/
+            │   ├── last.ckpt
+            │   └── epoch=X-val_acc1=Y.ckpt
+            ├── csv_logs/
+            ├── slurm_logs/  (if using submitit)
+            └── config.yaml
+```
+
+<Note>
+  This is **different** from `bcos/experiments/` which contains the config definitions. 
+  The separation allows you to delete failed run artifacts without affecting configs.
+</Note>
+
+## Logging and Monitoring
+
+The framework supports multiple loggers:
+
+- **Weights & Biases**: `--wandb_logger --wandb_project <project_name>`
+- **TensorBoard**: `--tensorboard_logger`
+- **CSV**: `--csv_logger`
+
+Example with W&B:
+
+```bash
+python train.py \
+    --dataset ImageNet \
+    --base_network bcos_final \
+    --experiment_name resnet_18 \
+    --wandb_logger \
+    --wandb_project bcos-imagenet
+```
+
+## Callbacks
+
+Several callbacks enhance the training experience:
+
+- **ModelCheckpoint**: Saves best models based on validation accuracy
+- **LearningRateMonitor**: Tracks LR changes
+- **MetricsTracker**: Saves metrics to checkpoints
+- **ExplanationsLogger**: Logs B-cos explanations periodically (optional)
+- **RichProgressBar**: Enhanced progress display (when available)
+
+## Automatic Resuming
+
+By default, training automatically resumes from the last checkpoint:
+
+```bash
+# First run
+python train.py --dataset CIFAR10 --base_network norm_ablations_final --experiment_name resnet_20
+
+# Interrupted? Just run again - it will resume automatically
+python train.py --dataset CIFAR10 --base_network norm_ablations_final --experiment_name resnet_20
+
+# Force restart
+python train.py --force-no-resume --dataset CIFAR10 --base_network norm_ablations_final --experiment_name resnet_20
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/training/configuration">
+    Learn about the config system and experiment parameters
+  </Card>
+  <Card title="Datasets" icon="database" href="/training/datasets">
+    Set up ImageNet and CIFAR-10 datasets
+  </Card>
+  <Card title="Distributed Training" icon="server" href="/training/distributed-training">
+    Scale training across multiple GPUs and nodes
+  </Card>
+  <Card title="Model API" icon="brain" href="/api/models">
+    Explore available model architectures
+  </Card>
+</CardGroup>

@@ -1,0 +1,337 @@
+---
+title: Optimizer & LR Scheduler Factories
+description: Factory classes for creating optimizers and learning rate schedulers
+---
+
+## OptimizerFactory
+
+Factory class for creating PyTorch optimizers with preset configurations.
+
+### Constructor
+
+```python
+OptimizerFactory(name: str, lr: Union[int, float], **kwargs)
+```
+
+<ParamField path="name" type="str" required>
+  Name of the optimizer. Must be one of: `"sgd"`, `"rmsprop"`, `"adam"`, or `"adamw"`
+</ParamField>
+
+<ParamField path="lr" type="float" required>
+  Learning rate
+</ParamField>
+
+<ParamField path="kwargs" type="dict">
+  Additional optimizer-specific arguments:
+  - For SGD: `momentum`, `weight_decay`, `nesterov`
+  - For RMSprop: `alpha`, `eps`, `weight_decay`, `momentum`
+  - For Adam/AdamW: `betas`, `eps`, `weight_decay`, `amsgrad`
+</ParamField>
+
+### Methods
+
+#### create
+
+```python
+create(model: torch.nn.Module) -> torch.optim.Optimizer
+```
+
+Creates an optimizer instance for the given model.
+
+<ParamField path="model" type="torch.nn.Module" required>
+  The model whose parameters will be optimized
+</ParamField>
+
+**Returns:** Configured PyTorch optimizer instance.
+
+**Note:** If `weight_decay` is specified, automatically handles different decay rates for normalization layers using `set_weight_decay`.
+
+#### with_name
+
+```python
+with_name(new_name: str) -> OptimizerFactory
+```
+
+Creates a new factory with the same parameters but a different optimizer name.
+
+<ParamField path="new_name" type="str" required>
+  New optimizer name
+</ParamField>
+
+**Returns:** New `OptimizerFactory` instance.
+
+#### with_lr
+
+```python
+with_lr(lr: float) -> OptimizerFactory
+```
+
+Creates a new factory with the same parameters but a different learning rate.
+
+<ParamField path="lr" type="float" required>
+  New learning rate
+</ParamField>
+
+**Returns:** New `OptimizerFactory` instance.
+
+#### with_args
+
+```python
+with_args(**kwargs) -> OptimizerFactory
+```
+
+Creates a new factory with updated optimizer arguments.
+
+<ParamField path="kwargs" type="dict" required>
+  New optimizer arguments (cannot include `lr` or `name`)
+</ParamField>
+
+**Returns:** New `OptimizerFactory` instance.
+
+### Static Methods
+
+#### set_weight_decay
+
+```python
+set_weight_decay(
+    model: torch.nn.Module,
+    weight_decay: float,
+    norm_weight_decay: Optional[float] = None,
+    norm_classes: Optional[List[type]] = None,
+    custom_keys_weight_decay: Optional[List[Tuple[str, float]]] = None
+)
+```
+
+Creates parameter groups with different weight decay rates for different layer types.
+
+<ParamField path="model" type="torch.nn.Module" required>
+  The model to extract parameters from
+</ParamField>
+
+<ParamField path="weight_decay" type="float" required>
+  Weight decay for regular parameters
+</ParamField>
+
+<ParamField path="norm_weight_decay" type="float">
+  Weight decay for normalization layers (if None, uses same as `weight_decay`)
+</ParamField>
+
+<ParamField path="norm_classes" type="List[type]">
+  List of normalization layer classes (defaults to common norm layers)
+</ParamField>
+
+<ParamField path="custom_keys_weight_decay" type="List[Tuple[str, float]]">
+  List of (parameter_name, weight_decay) tuples for custom weight decay values
+</ParamField>
+
+**Returns:** List of parameter group dictionaries.
+
+### Example Usage
+
+```python
+from bcos.optim import OptimizerFactory
+import torch.nn as nn
+
+# Create factory
+opt_factory = OptimizerFactory(
+    name="adamw",
+    lr=1e-3,
+    weight_decay=0.01,
+    betas=(0.9, 0.999)
+)
+
+# Create optimizer for a model
+model = nn.Sequential(nn.Linear(10, 5), nn.ReLU())
+optimizer = opt_factory.create(model)
+
+# Create variants
+sgd_factory = opt_factory.with_name("sgd").with_args(
+    momentum=0.9,
+    nesterov=True
+)
+
+# Lower learning rate
+lower_lr_factory = opt_factory.with_lr(1e-4)
+```
+
+---
+
+## LRSchedulerFactory
+
+Factory class for creating PyTorch learning rate schedulers with preset configurations and optional warmup.
+
+### Constructor
+
+```python
+LRSchedulerFactory(
+    name: str,
+    step_size: int = 30,
+    gamma: float = 0.1,
+    epochs: Optional[int] = None,
+    lr_min: float = 0.0,
+    interval: Literal["epoch", "step"] = "epoch",
+    warmup_epochs: Optional[int] = None,
+    warmup_steps: Optional[int] = None,
+    warmup_method: str = "constant",
+    warmup_decay: float = 0.01
+)
+```
+
+<ParamField path="name" type="str" required>
+  Name of the scheduler. Must be one of: `"steplr"`, `"cosineannealinglr"`, or `"exponentiallr"`
+</ParamField>
+
+<ParamField path="step_size" type="int" default="30">
+  Period of learning rate decay (for StepLR). Interpreted as epochs, converted to steps if `interval="step"`
+</ParamField>
+
+<ParamField path="gamma" type="float" default="0.1">
+  Multiplicative factor of learning rate decay
+</ParamField>
+
+<ParamField path="epochs" type="int">
+  Total number of training epochs (required for CosineAnnealingLR and when `interval="step"`)
+</ParamField>
+
+<ParamField path="lr_min" type="float" default="0.0">
+  Minimum learning rate (for CosineAnnealingLR)
+</ParamField>
+
+<ParamField path="interval" type="str" default="epoch">
+  Update frequency: `"epoch"` or `"step"`
+</ParamField>
+
+<ParamField path="warmup_epochs" type="int">
+  Number of warmup epochs (mutually exclusive with `warmup_steps`)
+</ParamField>
+
+<ParamField path="warmup_steps" type="int">
+  Number of warmup steps (requires `interval="step"`, mutually exclusive with `warmup_epochs`)
+</ParamField>
+
+<ParamField path="warmup_method" type="str" default="constant">
+  Warmup method: `"linear"` or `"constant"`
+</ParamField>
+
+<ParamField path="warmup_decay" type="float" default="0.01">
+  Initial learning rate factor during warmup (e.g., 0.01 means start at 1% of base LR)
+</ParamField>
+
+### Methods
+
+#### create
+
+```python
+create(
+    optimizer: torch.optim.Optimizer,
+    total_steps: Optional[int] = None
+)
+```
+
+Creates a learning rate scheduler instance.
+
+<ParamField path="optimizer" type="torch.optim.Optimizer" required>
+  The optimizer to schedule
+</ParamField>
+
+<ParamField path="total_steps" type="int">
+  Total number of training steps (required when `interval="step"`)
+</ParamField>
+
+**Returns:** 
+- If `interval="epoch"`: PyTorch scheduler instance
+- If `interval="step"`: Dictionary with `scheduler` and `interval` keys (for PyTorch Lightning)
+
+#### with_epochs
+
+```python
+with_epochs(epochs: Optional[int]) -> LRSchedulerFactory
+```
+
+Creates a new factory with updated total epochs.
+
+<ParamField path="epochs" type="int" required>
+  New total epochs value
+</ParamField>
+
+**Returns:** New `LRSchedulerFactory` instance.
+
+### Scheduler Types
+
+#### StepLR
+Decays learning rate by `gamma` every `step_size` epochs/steps.
+
+#### CosineAnnealingLR
+Decays learning rate following a cosine annealing schedule to `lr_min`.
+
+#### ExponentialLR
+Decays learning rate by `gamma` every epoch/step.
+
+### Warmup
+
+Both `linear` and `constant` warmup methods are supported:
+- **Linear warmup**: LR increases linearly from `lr * warmup_decay` to `lr`
+- **Constant warmup**: LR stays at `lr * warmup_decay` then jumps to `lr`
+
+Warmup is applied before the main scheduler using `SequentialLR`.
+
+### Example Usage
+
+```python
+from bcos.optim import LRSchedulerFactory, OptimizerFactory
+import torch.nn as nn
+
+# Create cosine annealing scheduler with warmup
+scheduler_factory = LRSchedulerFactory(
+    name="cosineannealinglr",
+    epochs=100,
+    lr_min=1e-6,
+    interval="step",
+    warmup_epochs=5,
+    warmup_method="linear",
+    warmup_decay=0.01
+)
+
+# Create optimizer and scheduler
+model = nn.Linear(10, 5)
+opt_factory = OptimizerFactory("adamw", lr=1e-3)
+optimizer = opt_factory.create(model)
+
+# For PyTorch Lightning (with total_steps from trainer)
+total_steps = 10000
+scheduler_config = scheduler_factory.create(optimizer, total_steps=total_steps)
+# scheduler_config = {"scheduler": ..., "interval": "step"}
+
+# For standard PyTorch (epoch-based)
+epoch_scheduler_factory = LRSchedulerFactory(
+    name="steplr",
+    step_size=30,
+    gamma=0.1,
+    interval="epoch"
+)
+scheduler = epoch_scheduler_factory.create(optimizer)
+```
+
+### Integration with PyTorch Lightning
+
+These factories are designed to work seamlessly with PyTorch Lightning's `configure_optimizers` method:
+
+```python
+class MyLightningModule(pl.LightningModule):
+    def configure_optimizers(self):
+        opt_factory = OptimizerFactory("adamw", lr=1e-3, weight_decay=0.01)
+        scheduler_factory = LRSchedulerFactory(
+            name="cosineannealinglr",
+            epochs=self.trainer.max_epochs,
+            interval="step",
+            warmup_epochs=5
+        )
+        
+        optimizer = opt_factory.create(self.model)
+        scheduler = scheduler_factory.create(
+            optimizer,
+            total_steps=self.trainer.estimated_stepping_batches
+        )
+        
+        return {"optimizer": optimizer, "lr_scheduler": scheduler}
+```

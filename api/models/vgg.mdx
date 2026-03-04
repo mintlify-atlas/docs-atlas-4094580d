@@ -1,0 +1,99 @@
+---
+title: VGG Models
+description: B-cos VGG pretrained models with Batch Normalization without centering
+---
+
+# VGG Models
+
+B-cos VGG models adapt the classic VGG architecture for inherently interpretable predictions using Batch Normalization without centering (BNU).
+
+## Available Models
+
+| Model | Acc@1 | Acc@5 | Params | Entrypoint |
+|-------|-------|-------|--------|------------|
+| VGG-11 BNU | 69.310% | 88.388% | 132.86M | `vgg11_bnu` |
+
+## Usage
+
+### Basic Usage
+
+```python
+import torch
+
+# Load pretrained VGG-11 with BNU
+model = torch.hub.load('B-cos/B-cos-v2', 'vgg11_bnu', pretrained=True)
+
+# Load without pretrained weights
+model = torch.hub.load('B-cos/B-cos-v2', 'vgg11_bnu', pretrained=False)
+```
+
+### Inference Example
+
+```python
+from PIL import Image
+import matplotlib.pyplot as plt
+
+# Load and preprocess image
+img = Image.open('image.jpg')
+img_tensor = model.transform(img).unsqueeze(0).requires_grad_()
+
+# Get prediction with explanation
+model.eval()
+expl_out = model.explain(img_tensor)
+print(f"Predicted class: {expl_out['prediction']}")
+plt.imshow(expl_out['explanation'])
+plt.show()
+```
+
+## API Reference
+
+### vgg11_bnu
+
+```python
+vgg11_bnu(pretrained=False, progress=True, **kwargs)
+```
+
+B-cos VGG-11 model with Batch Normalization without centering (BNU).
+
+<ParamField path="pretrained" type="bool" default="False">
+  If True, returns a model pre-trained on ImageNet
+</ParamField>
+
+<ParamField path="progress" type="bool" default="True">
+  If True, displays a progress bar of the download to stderr
+</ParamField>
+
+<ParamField path="**kwargs" type="Any">
+  Additional arguments passed to the model constructor. See source code for details.
+</ParamField>
+
+**Returns:** `torch.nn.Module` - The B-cos VGG-11 BNU model
+
+**Metrics:**
+- Acc@1: 69.310%
+- Acc@5: 88.388%
+- Parameters: 132.86M
+
+## Notes
+
+### Architecture Details
+
+This VGG-11 implementation uses Batch Normalization without centering (BNU), which is better suited for B-cos alignment than standard batch normalization.
+
+### Parameter Count
+
+VGG models are known for having significantly more parameters than modern architectures. The VGG-11 BNU model has 132.86M parameters, which is much larger than comparably-performing models like ResNet-34 (21.80M parameters with 72.28% accuracy).
+
+### When to Use
+
+VGG-11 BNU is useful when:
+- You need a simple, linear architecture for interpretability research
+- You want to compare with classic CNN architectures
+- You have sufficient computational resources for the larger parameter count
+
+For most practical applications, consider using more parameter-efficient models like DenseNet or ResNet variants.
+
+## References
+
+- [B-cos Networks: Alignment is All We Need for Interpretability](https://arxiv.org/abs/2205.10268)
+- [Very Deep Convolutional Networks for Large-Scale Image Recognition](https://arxiv.org/pdf/1409.1556.pdf)

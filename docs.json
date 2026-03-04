@@ -1,122 +1,132 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "B-cos Networks",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#f6be31",
+    "light": "#7c531c",
+    "dark": "#040404"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "/favicon.jpg",
+  "logo": {
+    "light": "https://media.brand.dev/c526252c-71f6-4aed-ba11-e7252d204e57.svg",
+    "dark": "https://media.brand.dev/c1726436-3da7-4f9a-b541-3ce008d89599.svg"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/B-cos/B-cos-v2"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/B-cos/B-cos-v2"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/bcos-alignment",
+              "concepts/interpretability",
+              "concepts/architecture"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/loading-models",
+              "guides/explanation-visualization",
+              "guides/fine-tuning",
+              "guides/training-custom-models"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Training",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "training/overview",
+              "training/configuration",
+              "training/datasets",
+              "training/distributed-training"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Pretrained Models",
             "pages": [
-              "api-reference/introduction"
+              "api/models/overview",
+              "api/models/resnet",
+              "api/models/densenet",
+              "api/models/convnext",
+              "api/models/vit",
+              "api/models/vgg"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Core Modules",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/modules/bcos-conv2d",
+              "api/modules/bcos-linear",
+              "api/modules/logit-layer",
+              "api/modules/norms"
+            ]
+          },
+          {
+            "group": "Data & Transforms",
+            "pages": [
+              "api/data/transforms",
+              "api/data/presets",
+              "api/data/datamodules"
+            ]
+          },
+          {
+            "group": "Training Utilities",
+            "pages": [
+              "api/training/trainer",
+              "api/training/optimizers",
+              "api/training/callbacks"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/utilities/explanation-mode",
+              "api/utilities/visualization",
+              "api/utilities/common"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Model Zoo",
+        "groups": [
+          {
+            "group": "Available Models",
+            "pages": [
+              "model-zoo/overview",
+              "model-zoo/cnn-models",
+              "model-zoo/vision-transformers",
+              "model-zoo/performance-benchmarks"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }
